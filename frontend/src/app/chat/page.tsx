@@ -19,7 +19,7 @@ export default function Chat() {
 
     setTyping(true);
 
-    const res = await fetch("http://192.168.1.7:8000/asistente_ia", {
+    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/asistente_ia`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ mensaje }),

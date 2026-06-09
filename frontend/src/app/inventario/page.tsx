@@ -43,7 +43,7 @@ export default function Inventario() {
 
 
   useEffect(() => {
-    fetch("http://192.168.1.7:8000/api/inventario")
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`)
       .then(res => res.json())
       .then(data => setProductos(data.productos));
   }, []);

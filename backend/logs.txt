@@ -31,3 +31,13 @@ Acción: consultar | Producto: harina | Datos: {'accion': 'consultar', 'producto
 Acción: error | Producto:  | Datos: {'accion': 'error', 'producto': '', 'cantidad': 0}
 Acción: editar | Producto: harina | Datos: {'accion': 'editar', 'producto': 'harina', 'campo': 'marca', 'valor': 'PAN'}
 Acción: eliminar | Producto: pasta | Datos: {'accion': 'eliminar', 'producto': 'pasta', 'cantidad': 1}
+Acción: seleccionar | Producto: mamagueb | Datos: {'accion': 'seleccionar', 'opcion': 'Por definir', 'campo': 'tipo', 'producto': 'Mamagueb'}
+Acción: error | Producto:  | Datos: {'accion': 'error', 'producto': '', 'cantidad': 0}
+Acción: consultar | Producto: arroz | Datos: {'accion': 'consultar', 'producto': 'arroz'}
+Acción: consultar_tipo | Producto: por definir | Datos: {'accion': 'consultar_tipo', 'campo': 'caducidad', 'producto': 'Por definir'}
+Acción: consultar_tipo | Producto: por definir | Datos: {'accion': 'consultar_tipo', 'producto': 'Por definir', 'tipo': 'Alimento'}
+Acción: agregar | Producto: caraotas | Datos: {'accion': 'agregar', 'producto': 'Caraotas', 'cantidad': 20, 'tipo': 'Grano', 'marca': 'Pantera', 'fecha_ingreso': 'Por definir', 'fecha_caducidad': '2026-10-10'}
+Acción: eliminar | Producto: caraotas | Datos: {'accion': 'eliminar', 'producto': 'caraotas', 'cantidad': 5}
+Acción: Por definir | Producto: xd | Datos: {'accion': 'Por definir', 'producto': 'xd', 'cantidad': 'Por definir', 'tipo': 'Por definir', 'marca': 'Por definir', 'fecha_ingreso': '2023-03-15', 'fecha_caducidad': 'Por definir'}
+Acción: consultar_tipo | Producto: total | Datos: {'accion': 'consultar_tipo', 'producto': 'total'}
+Acción: consultar | Producto: harina | Datos: {'accion': 'consultar', 'producto': 'harina'}
