@@ -20,3 +20,14 @@ Acción: eliminar | Producto: pasta | Datos: {'accion': 'eliminar', 'producto': 
 Acción: agregar | Producto: pasta | Datos: {'accion': 'agregar', 'producto': 'Pasta', 'cantidad': 10, 'tipo': 'Alimento', 'marca': 'Horizonte', 'fecha_ingreso': 'Por definir', 'fecha_caducidad': 'Por definir'}
 Acción: agregar | Producto: salsa | Datos: {'accion': 'agregar', 'producto': 'Salsa', 'cantidad': 1, 'tipo': 'Por definir', 'marca': 'Por definir', 'fecha_ingreso': '2023-03-16', 'fecha_caducidad': 'Por definir'}
 Acción: consultar | Producto: arroz | Datos: {'accion': 'consultar', 'producto': 'arroz'}
+Acción: eliminar | Producto: salsa | Datos: {'accion': 'eliminar', 'producto': 'salsa'}
+Acción: consultar | Producto: arroz | Datos: {'accion': 'consultar', 'producto': 'arroz'}
+Acción: agregar | Producto: salsa | Datos: {'accion': 'agregar', 'producto': 'Salsa', 'cantidad': 5, 'tipo': 'Condimento', 'marca': 'Heinz', 'fecha_ingreso': 'Por definir', 'fecha_caducidad': '2026-08-07'}
+Acción: error | Producto:  | Datos: {'accion': 'error', 'producto': '', 'cantidad': 0}
+Acción: agregar | Producto: harina | Datos: {'accion': 'agregar', 'producto': 'Harina', 'cantidad': 10, 'tipo': 'Alimento', 'marca': 'Polar', 'fecha_ingreso': 'Por definir', 'fecha_caducidad': '2026-12-12'}
+Acción: consultar | Producto: harina | Datos: {'accion': 'consultar', 'producto': 'harina'}
+Acción: eliminar | Producto: harina | Datos: {'accion': 'eliminar', 'producto': 'harina', 'marca': 'Polar'}
+Acción: consultar | Producto: harina | Datos: {'accion': 'consultar', 'producto': 'harina'}
+Acción: error | Producto:  | Datos: {'accion': 'error', 'producto': '', 'cantidad': 0}
+Acción: editar | Producto: harina | Datos: {'accion': 'editar', 'producto': 'harina', 'campo': 'marca', 'valor': 'PAN'}
+Acción: eliminar | Producto: pasta | Datos: {'accion': 'eliminar', 'producto': 'pasta', 'cantidad': 1}
