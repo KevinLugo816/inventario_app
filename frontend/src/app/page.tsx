@@ -17,11 +17,7 @@ export default function Home() {
   const [productos, setProductos] = useState<Producto[]>([]);
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`, {
-      headers: {
-        "ngrok-skip-browser-warning": "true",
-      },
-    })
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`)
       .then((res) => res.json())
       .then((data) => setProductos(data.productos));
   }, []);
