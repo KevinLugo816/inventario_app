@@ -24,6 +24,13 @@ def ejecutar_accion(accion):
 
         if fecha_ingreso in ["", None, "Por definir", "-", "por definir"]:
             fecha_ingreso = datetime.now().strftime("%Y-%m-%d")
+        else:
+            try:
+                fecha_dt = datetime.strptime(fecha_ingreso, "%Y-%m-%d")
+                if fecha_dt.year != datetime.now().year:
+                    fecha_ingreso = datetime.now().strftime("%Y-%m-%d")
+            except:
+                fecha_ingreso = datetime.now().strftime("%Y-%m-%d")
 
         producto_id = accion.get("producto_id")
 
