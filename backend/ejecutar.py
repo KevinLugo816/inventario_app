@@ -13,8 +13,7 @@ def ejecutar_accion(accion):
     producto = accion.get("producto", "").strip().lower()
 
     # --- Logging opcional ---
-    with open("logs.txt", "a", encoding="utf-8") as f:
-        f.write(f"Acción: {tipo} | Producto: {producto} | Datos: {accion}\n")
+    print(f"Acción: {tipo} | Producto: {producto} | Datos: {accion}")
 
     if tipo == "agregar":
         cantidad = accion.get("cantidad", 0)

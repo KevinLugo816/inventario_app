@@ -1,5 +1,8 @@
-import ollama
 import json
+from groq import Groq
+import os
+
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 def interpretar_mensaje(mensaje: str):
     prompt = """
@@ -42,46 +45,19 @@ CAMPOS DISPONIBLES:
 - opcion
 - accion_original
 
-EJEMPLOS:
-
-Usuario: "agrega 5 arroz marca Polar"
-Respuesta:
-{
-    "accion": "agregar",
-    "producto": "arroz",
-    "cantidad": 5,
-    "tipo": "Por definir",
-    "marca": "Polar",
-    "fecha_ingreso": "Por definir",
-    "fecha_caducidad": "Por definir"
-}
-
-Usuario: "cuánto queda de arroz"
-Respuesta:
-{
-    "accion": "consultar",
-    "producto": "arroz"
-}
-
-Usuario: "cambia la fecha de caducidad de la leche a 2026-07-01"
-Respuesta:
-{
-    "accion": "editar",
-    "producto": "leche",
-    "campo": "fecha_caducidad",
-    "valor": "2026-07-01"
-}
-
 Ahora interpreta este mensaje:
 """ + mensaje
 
     try:
-        respuesta = ollama.chat(
-            model="llama3",
-            messages=[{"role": "user", "content": prompt}]
+        respuesta = client.chat.completions.create(
+            model="llama3-8b-8192",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.1
         )
-        contenido = respuesta["message"]["content"].strip()
 
+        contenido = respuesta.choices[0].message.content.strip()
+
+        # Asegurar que sea JSON válido
         if not contenido.startswith("{"):
             inicio = contenido.find("{")
             fin = contenido.rfind("}")
@@ -93,7 +69,6 @@ Ahora interpreta este mensaje:
         if "accion" not in accion_json:
             return {"accion": "error", "producto": "", "cantidad": 0}
 
-        # Si es consulta, aseguramos que tenga producto
         if accion_json["accion"].startswith("consultar") and "producto" not in accion_json:
             accion_json["producto"] = "Por definir"
 
