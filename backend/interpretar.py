@@ -50,7 +50,7 @@ Ahora interpreta este mensaje:
 
     try:
         respuesta = client.chat.completions.create(
-            model="llama3-8b-8192",
+            model="llama3-8b-8k",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.1
         )
