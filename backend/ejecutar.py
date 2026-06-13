@@ -37,17 +37,24 @@ def ejecutar_accion(accion):
         if producto_id:
             cursor.execute("""
                 UPDATE productos SET 
-                    cantidad = cantidad + ?,
-                    tipo = CASE WHEN ? != 'Por definir' THEN ? ELSE tipo END,
-                    marca = CASE WHEN ? != 'Por definir' THEN ? ELSE marca END,
-                    fecha_ingreso = CASE WHEN ? != 'Por definir' THEN ? ELSE fecha_ingreso END,
-                    fecha_caducidad = CASE WHEN ? != 'Por definir' THEN ? ELSE fecha_caducidad END
-                WHERE id = ?
-            """, (cantidad, tipo_p, tipo_p, marca, marca, fecha_ingreso, fecha_ingreso, fecha_caducidad, fecha_caducidad, producto_id))
+                    cantidad = cantidad + %s,
+                    tipo = CASE WHEN %s != 'Por definir' THEN %s ELSE tipo END,
+                    marca = CASE WHEN %s != 'Por definir' THEN %s ELSE marca END,
+                    fecha_ingreso = CASE WHEN %s != 'Por definir' THEN %s ELSE fecha_ingreso END,
+                    fecha_caducidad = CASE WHEN %s != 'Por definir' THEN %s ELSE fecha_caducidad END
+                WHERE id = %s
+            """, (
+                cantidad, tipo_p, tipo_p,
+                marca, marca,
+                fecha_ingreso, fecha_ingreso,
+                fecha_caducidad, fecha_caducidad,
+                producto_id
+            ))
+
         else:
             cursor.execute("""
                 INSERT INTO productos (nombre, cantidad, tipo, marca, fecha_ingreso, fecha_caducidad)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s)
             """, (producto, cantidad, tipo_p, marca, fecha_ingreso, fecha_caducidad))
 
         conn.commit()
@@ -57,21 +64,21 @@ def ejecutar_accion(accion):
     elif tipo == "eliminar":
         cantidad = accion.get("cantidad", 0)
 
-        productos = cursor.execute(
-            "SELECT * FROM productos WHERE LOWER(nombre) = LOWER(?)",
-            (producto,)
-        ).fetchall()
+        cursor.execute("SELECT * FROM productos WHERE LOWER(nombre) = LOWER(%s)", (producto,))
+        productos = cursor.fetchall()
 
         if not productos:
             conn.close()
             return f"No existe el producto '{producto}'."
 
         producto_id = productos[0]["id"]
-        dato = cursor.execute("SELECT cantidad FROM productos WHERE id = ?", (producto_id,)).fetchone()
+
+        cursor.execute("SELECT cantidad FROM productos WHERE id = %s", (producto_id,))
+        dato = cursor.fetchone()
         cantidad_actual = dato["cantidad"]
 
         if cantidad == 0:
-            cursor.execute("DELETE FROM productos WHERE id = ?", (producto_id,))
+            cursor.execute("DELETE FROM productos WHERE id = %s", (producto_id,))
             conn.commit()
             conn.close()
             return f"Producto '{producto}' eliminado completamente."
@@ -83,10 +90,10 @@ def ejecutar_accion(accion):
         nueva = cantidad_actual - cantidad
 
         if nueva == 0:
-            cursor.execute("DELETE FROM productos WHERE id = ?", (producto_id,))
+            cursor.execute("DELETE FROM productos WHERE id = %s", (producto_id,))
             mensaje = f"Se eliminaron todas las unidades de '{producto}'."
         else:
-            cursor.execute("UPDATE productos SET cantidad = ? WHERE id = ?", (nueva, producto_id))
+            cursor.execute("UPDATE productos SET cantidad = %s WHERE id = %s", (nueva, producto_id))
             mensaje = f"Se eliminaron {cantidad} unidades de '{producto}'. Quedan {nueva}."
 
         conn.commit()
@@ -107,6 +114,7 @@ def ejecutar_accion(accion):
                 elegido = lista[n - 1]
             else:
                 return "Número inválido. Intenta nuevamente."
+
         elif "marca" in seleccion:
             marca = seleccion.replace("marca", "").strip()
             coincidencias = [p for p in lista if p["marca"].lower() == marca.lower()]
@@ -114,6 +122,7 @@ def ejecutar_accion(accion):
                 elegido = coincidencias[0]
             else:
                 return "No encontré un producto con esa marca."
+
         elif "tipo" in seleccion:
             tipo_p = seleccion.replace("tipo", "").strip()
             coincidencias = [p for p in lista if p["tipo"].lower() == tipo_p.lower()]
@@ -121,20 +130,25 @@ def ejecutar_accion(accion):
                 elegido = coincidencias[0]
             else:
                 return "No encontré un producto con ese tipo."
+
         elif "nuevo" in seleccion:
             lista_ordenada = sorted(lista, key=lambda p: p["fecha_ingreso"], reverse=True)
             elegido = lista_ordenada[0]
+
         elif "viejo" in seleccion:
             lista_ordenada = sorted(lista, key=lambda p: p["fecha_ingreso"])
             elegido = lista_ordenada[0]
+
         elif "vence primero" in seleccion or "primero" in seleccion:
             lista_validas = [p for p in lista if p["fecha_caducidad"] != "Por definir"]
             lista_ordenada = sorted(lista_validas, key=lambda p: p["fecha_caducidad"])
             elegido = lista_ordenada[0]
+
         elif "vence después" in seleccion or "después" in seleccion:
             lista_validas = [p for p in lista if p["fecha_caducidad"] != "Por definir"]
             lista_ordenada = sorted(lista_validas, key=lambda p: p["fecha_caducidad"], reverse=True)
             elegido = lista_ordenada[0]
+
         else:
             return "No entendí tu selección. Intenta con: '1', 'marca Polar', 'el más nuevo', etc."
 
@@ -145,10 +159,8 @@ def ejecutar_accion(accion):
 
         return ejecutar_accion(accion_original)
 
-    productos = cursor.execute(
-        "SELECT * FROM productos WHERE LOWER(nombre) = LOWER(?)",
-        (producto,)
-    ).fetchall()
+    cursor.execute("SELECT * FROM productos WHERE LOWER(nombre) = LOWER(%s)", (producto,))
+    productos = cursor.fetchall()
 
     if tipo == "consultar":
         if len(productos) == 0:
@@ -173,10 +185,11 @@ def ejecutar_accion(accion):
 
     if tipo == "consultar_marca":
         marca = accion.get("marca", "")
-        productos = cursor.execute(
-            "SELECT * FROM productos WHERE LOWER(nombre)=LOWER(?) AND LOWER(marca)=LOWER(?)",
+        cursor.execute(
+            "SELECT * FROM productos WHERE LOWER(nombre)=LOWER(%s) AND LOWER(marca)=LOWER(%s)",
             (producto, marca)
-        ).fetchall()
+        )
+        productos = cursor.fetchall()
         conn.close()
         if productos:
             p = productos[0]
@@ -185,10 +198,11 @@ def ejecutar_accion(accion):
 
     if tipo == "consultar_tipo":
         tipo_p = accion.get("tipo", "")
-        productos = cursor.execute(
-            "SELECT * FROM productos WHERE LOWER(nombre)=LOWER(?) AND LOWER(tipo)=LOWER(?)",
+        cursor.execute(
+            "SELECT * FROM productos WHERE LOWER(nombre)=LOWER(%s) AND LOWER(tipo)=LOWER(%s)",
             (producto, tipo_p)
-        ).fetchall()
+        )
+        productos = cursor.fetchall()
         conn.close()
         if productos:
             total = sum(p["cantidad"] for p in productos)
@@ -198,9 +212,10 @@ def ejecutar_accion(accion):
     if tipo == "consultar_caducidad":
         dias = int(accion.get("dias", 0))
         limite = datetime.today() + timedelta(days=dias)
-        productos = cursor.execute(
-            "SELECT * FROM productos WHERE fecha_caducidad != 'Por definir'"
-        ).fetchall()
+
+        cursor.execute("SELECT * FROM productos WHERE fecha_caducidad != 'Por definir'")
+        productos = cursor.fetchall()
+
         proximos = []
         for p in productos:
             try:
@@ -209,26 +224,29 @@ def ejecutar_accion(accion):
                     proximos.append(p)
             except:
                 continue
+
         conn.close()
+
         if proximos:
             respuesta = f"Productos que vencen en {dias} días:\n"
             for p in proximos:
                 respuesta += f"- {p['nombre']} ({p['marca']}) vence {p['fecha_caducidad']}\n"
             return respuesta
+
         return f"Ningún producto vence en {dias} días."
 
     if tipo == "consultar_ingreso":
         fecha = accion.get("fecha_ingreso", "")
-        productos = cursor.execute(
-            "SELECT * FROM productos WHERE fecha_ingreso = ?",
-            (fecha,)
-        ).fetchall()
+        cursor.execute("SELECT * FROM productos WHERE fecha_ingreso = %s", (fecha,))
+        productos = cursor.fetchall()
         conn.close()
+
         if productos:
             respuesta = f"Productos ingresados en {fecha}:\n"
             for p in productos:
                 respuesta += f"- {p['nombre']} ({p['cantidad']} unidades)\n"
             return respuesta
+
         return f"No se ingresaron productos en {fecha}."
 
     campos_validos = ["nombre", "cantidad", "tipo", "marca", "fecha_ingreso", "fecha_caducidad"]
@@ -246,7 +264,8 @@ def ejecutar_accion(accion):
             return f"No existe el producto '{producto}'."
 
         producto_id = productos[0]["id"]
-        cursor.execute(f"UPDATE productos SET {campo} = ? WHERE id = ?", (valor, producto_id))
+
+        cursor.execute(f"UPDATE productos SET {campo} = %s WHERE id = %s", (valor, producto_id))
         conn.commit()
         conn.close()
         return f"El campo '{campo}' de '{producto}' fue actualizado a '{valor}'."

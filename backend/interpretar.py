@@ -1,11 +1,12 @@
 import json
 from groq import Groq
 import os
+from datetime import datetime
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 def interpretar_mensaje(mensaje: str):
-    prompt = """
+    prompt = f"""
 Eres un asistente de inventario. Responde SOLO con JSON válido.
 
 REGLAS IMPORTANTES:
@@ -46,7 +47,8 @@ CAMPOS DISPONIBLES:
 - accion_original
 
 Ahora interpreta este mensaje:
-""" + mensaje
+{mensaje}
+"""
 
     try:
         respuesta = client.chat.completions.create(
@@ -57,20 +59,29 @@ Ahora interpreta este mensaje:
 
         contenido = respuesta.choices[0].message.content.strip()
 
-        # Asegurar que sea JSON válido
-        if not contenido.startswith("{"):
-            inicio = contenido.find("{")
-            fin = contenido.rfind("}")
-            if inicio != -1 and fin != -1:
-                contenido = contenido[inicio:fin+1]
+        # --- Asegurar que solo quede el JSON ---
+        inicio = contenido.find("{")
+        fin = contenido.rfind("}")
 
+        if inicio == -1 or fin == -1:
+            raise ValueError("No se encontró JSON válido")
+
+        contenido = contenido[inicio:fin+1]
+
+        # --- Convertir a JSON ---
         accion_json = json.loads(contenido)
 
+        # --- Validar acción ---
         if "accion" not in accion_json:
-            return {"accion": "error", "producto": "", "cantidad": 0}
+            accion_json["accion"] = "error"
 
+        # --- Asegurar campo producto ---
         if accion_json["accion"].startswith("consultar") and "producto" not in accion_json:
             accion_json["producto"] = "Por definir"
+
+        # --- Normalizar fecha_ingreso si viene vacía ---
+        if accion_json.get("fecha_ingreso") in [None, "", "-", "por definir", "Por definir"]:
+            accion_json["fecha_ingreso"] = datetime.now().strftime("%Y-%m-%d")
 
         return accion_json
 
