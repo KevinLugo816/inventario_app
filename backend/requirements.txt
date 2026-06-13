@@ -2,3 +2,4 @@ flask
 flask-cors
 gunicorn
 groq
+psycopg2-binary
