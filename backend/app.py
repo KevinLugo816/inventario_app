@@ -4,7 +4,7 @@ from database import get_connection, crear_tabla
 from interpretar import interpretar_mensaje
 from ejecutar import ejecutar_accion
 import os
-import psycopg2
+import time
 
 app = Flask(__name__)
 CORS(app)
@@ -66,8 +66,7 @@ def asistente_ia():
             print("Error ejecutando acción:", e)
             return jsonify({"respuesta": "Ocurrió un error ejecutando la acción."})
 
-        if not resultado:
-            return jsonify({"respuesta": "No pude completar la acción."})
+        time.sleep(0.2)
 
         return jsonify({"respuesta": resultado})
 
