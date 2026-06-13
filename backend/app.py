@@ -17,8 +17,13 @@ def inventario():
         conn = get_connection()
         cursor = conn.cursor()
 
-        productos = cursor.execute("SELECT * FROM productos").fetchall()
+        cursor.execute("SELECT * FROM productos")
+        productos = cursor.fetchall()
+
         conn.close()
+
+        if not productos:
+            return jsonify({"productos": []})
 
         return jsonify({
             "productos": [dict(p) for p in productos]
@@ -35,11 +40,23 @@ def asistente_ia():
         data = request.get_json()
         mensaje = data.get("mensaje", "")
 
-        # Interpretar mensaje con IA
-        accion = interpretar_mensaje(mensaje)
+        if not mensaje:
+            return jsonify({"respuesta": "No recibí ningún mensaje."})
 
-        # Ejecutar acción en el inventario
-        resultado = ejecutar_accion(accion)
+        try:
+            accion = interpretar_mensaje(mensaje)
+        except Exception as e:
+            print("Error interpretando mensaje:", e)
+            return jsonify({"respuesta": "No pude interpretar tu mensaje."})
+
+        if not isinstance(accion, dict):
+            return jsonify({"respuesta": "La IA devolvió un formato inesperado."})
+
+        try:
+            resultado = ejecutar_accion(accion)
+        except Exception as e:
+            print("Error ejecutando acción:", e)
+            return jsonify({"respuesta": "Ocurrió un error ejecutando la acción."})
 
         return jsonify({"respuesta": resultado})
 
