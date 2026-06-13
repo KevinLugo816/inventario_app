@@ -3,11 +3,13 @@ from flask_cors import CORS
 from database import get_connection
 from interpretar import interpretar_mensaje
 from ejecutar import ejecutar_accion
+from database import crear_tabla
 import os
 
 app = Flask(__name__)
 CORS(app)
 
+crear_tabla()
 
 @app.route("/api/inventario", methods=["GET"])
 def inventario():
