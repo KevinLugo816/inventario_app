@@ -5,6 +5,7 @@ from interpretar import interpretar_mensaje
 from ejecutar import ejecutar_accion
 import os
 import time
+import psycopg2.extras
 
 app = Flask(__name__)
 CORS(app)
@@ -16,7 +17,7 @@ def inventario():
     conn = None
     try:
         conn = get_connection()
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
         cursor.execute("SELECT * FROM productos")
         productos = cursor.fetchall()
@@ -66,6 +67,7 @@ def asistente_ia():
             print("Error ejecutando acción:", e)
             return jsonify({"respuesta": "Ocurrió un error ejecutando la acción."})
 
+        # Dar tiempo a PostgreSQL para liberar la conexión
         time.sleep(0.2)
 
         return jsonify({"respuesta": resultado})

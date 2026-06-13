@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from database import get_connection
+import psycopg2.extras
 
 opciones_pendientes = {}
 
@@ -7,12 +8,11 @@ def ejecutar_accion(accion):
     global opciones_pendientes
 
     conn = get_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     tipo = accion.get("accion")
     producto = accion.get("producto", "").strip().lower()
 
-    # --- Logging opcional ---
     print(f"Acción: {tipo} | Producto: {producto} | Datos: {accion}")
 
     if tipo == "agregar":
@@ -22,6 +22,7 @@ def ejecutar_accion(accion):
         fecha_ingreso = accion.get("fecha_ingreso", "Por definir")
         fecha_caducidad = accion.get("fecha_caducidad", "Por definir")
 
+        # Normalizar fecha_ingreso
         if fecha_ingreso in ["", None, "Por definir", "-", "por definir"]:
             fecha_ingreso = datetime.now().strftime("%Y-%m-%d")
         else:
