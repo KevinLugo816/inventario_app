@@ -25,25 +25,7 @@ export default function Home() {
   const isClient = useIsClient();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
-  const [fechaActual, setFechaActual] = useState("");
 
-  // FECHA ACTUAL
-  useEffect(() => {
-    const fecha = new Date();
-    const opciones: Intl.DateTimeFormatOptions = {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    };
-
-    const formateada = fecha
-      .toLocaleDateString("es-ES", opciones)
-      .replace(".", "");
-
-    setFechaActual(formateada);
-  }, []);
-
-  // CARGA DE INVENTARIO
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`)
       .then((res) => res.json())
@@ -54,12 +36,10 @@ export default function Home() {
       .catch(() => setLoading(false));
   }, []);
 
-  // MÉTRICAS
   const totalInventario = productos.reduce((acc, p) => acc + p.cantidad, 0);
   const productosRegistrados = productos.length;
   const consultasIA = 0;
 
-  // CATEGORÍAS
   const categoriasMap: Record<string, number> = {};
   productos.forEach((p) => {
     const tipo = p.tipo ?? "Sin categoría";
@@ -73,7 +53,6 @@ export default function Home() {
 
   const colores = ["#f97316", "#fb923c", "#fdba74", "#fed7aa", "#ffedd5"];
 
-  // GRÁFICO DE STOCK MEJORADO
   const stockLevels = {
     alto: productos.filter((p) => p.cantidad >= 20).length,
     medio: productos.filter((p) => p.cantidad >= 10 && p.cantidad < 20).length,
@@ -86,7 +65,6 @@ export default function Home() {
     { nivel: "Bajo", cantidad: stockLevels.bajo },
   ];
 
-  // SKELETON
   if (loading) {
     return (
       <div className="space-y-10 animate-pulse">
@@ -243,19 +221,6 @@ export default function Home() {
               </ResponsiveContainer>
             )}
           </div>
-        </div>
-
-        {/* PANEL DE FECHA */}
-        <div className="bg-gradient-to-br from-[#1b1b1b] to-[#141414] p-6 rounded-xl shadow-lg border border-[#2a2a2a] flex flex-col items-center justify-center animate-[fadeIn_.7s_ease-out]">
-          <h3 className="text-xl font-semibold text-gray-300 mb-2">
-            Fecha Actual
-          </h3>
-
-          <p className="text-4xl font-bold text-orange-500 tracking-wide">
-            {fechaActual}
-          </p>
-
-          <div className="h-[3px] w-full bg-orange-500/20 mt-4 rounded-full"></div>
         </div>
 
       </div>
