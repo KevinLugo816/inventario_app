@@ -18,8 +18,18 @@ def inventario():
     try:
         conn = get_connection()
         cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute("""
+            SELECT 
+                id,
+                nombre,
+                cantidad,
+                marca,
+                tipo,
+                TO_CHAR(fecha_ingreso, 'YYYY-MM-DD') AS fecha_ingreso,
+                TO_CHAR(fecha_caducidad, 'YYYY-MM-DD') AS fecha_caducidad
+            FROM productos
+        """)
 
-        cursor.execute("SELECT * FROM productos")
         productos = cursor.fetchall()
 
         if not productos:
@@ -67,7 +77,6 @@ def asistente_ia():
             print("Error ejecutando acción:", e)
             return jsonify({"respuesta": "Ocurrió un error ejecutando la acción."})
 
-        # Dar tiempo a PostgreSQL para liberar la conexión
         time.sleep(0.2)
 
         return jsonify({"respuesta": resultado})
