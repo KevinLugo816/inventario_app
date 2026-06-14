@@ -22,8 +22,22 @@ def ejecutar_accion(accion):
             return 0
 
     def normalizar_fecha(valor):
+        """
+        Acepta:
+        - "Por definir"
+        - DD-MM-YYYY  → convierte a YYYY-MM-DD
+        - YYYY-MM-DD → lo deja igual
+        """
         if valor in ["", None, "-", "por definir", "Por definir"]:
             return "Por definir"
+
+        try:
+            if "-" in valor and len(valor.split("-")[0]) == 2:
+                d, m, y = valor.split("-")
+                return f"{y}-{m}-{d}"
+        except:
+            pass
+
         try:
             datetime.strptime(valor, "%Y-%m-%d")
             return valor
@@ -35,15 +49,11 @@ def ejecutar_accion(accion):
         tipo_p = accion.get("tipo", "Por definir")
         marca = accion.get("marca", "Por definir")
 
-        fecha_ingreso = accion.get("fecha_ingreso", "Por definir")
-        fecha_caducidad = accion.get("fecha_caducidad", "Por definir")
+        fecha_ingreso = normalizar_fecha(accion.get("fecha_ingreso", "Por definir"))
+        fecha_caducidad = normalizar_fecha(accion.get("fecha_caducidad", "Por definir"))
 
-        # Normalizar fechas
-        fecha_ingreso = normalizar_fecha(fecha_ingreso)
         if fecha_ingreso == "Por definir":
             fecha_ingreso = datetime.now().strftime("%Y-%m-%d")
-
-        fecha_caducidad = normalizar_fecha(fecha_caducidad)
 
         producto_id = accion.get("producto_id")
 
@@ -285,6 +295,11 @@ def ejecutar_accion(accion):
             return "Hay varios lotes de este producto. Especifica marca o tipo."
 
         producto_id = productos[0]["id"]
+
+        if campo == "fecha_ingreso" or campo == "fecha_caducidad":
+            valor = normalizar_fecha(valor)
+            if valor == "Por definir":
+                valor = datetime.now().strftime("%Y-%m-%d")
 
         cursor.execute(f"UPDATE productos SET {campo} = %s WHERE id = %s", (valor, producto_id))
         conn.commit()

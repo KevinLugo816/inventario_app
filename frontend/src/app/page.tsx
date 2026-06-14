@@ -199,6 +199,8 @@ export default function Home() {
                       borderRadius: "10px",
                       color: "#fff",
                     }}
+                    labelStyle={{ color: "#f97316" }}
+                    itemStyle={{ color: "#f97316" }}
                     formatter={(value) => [`${value} productos`, "Cantidad"]}
                   />
 

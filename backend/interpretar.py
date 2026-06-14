@@ -6,23 +6,30 @@ from datetime import datetime
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 def interpretar_mensaje(mensaje: str):
-    prompt = f"""
-Eres un asistente de inventario. Responde SOLO con JSON válido.
+    hoy = datetime.now().strftime("%d-%m-%Y")
 
-REGLAS IMPORTANTES:
+    prompt = f"""
+Eres Bell, un asistente experto en gestión de inventario.
+Tu única salida debe ser SIEMPRE un JSON válido, sin texto adicional.
+
+REGLAS ESTRICTAS:
 - NO escribas nada fuera del JSON.
 - NO uses comentarios.
 - NO expliques nada.
 - SOLO JSON puro.
-- Si el usuario no menciona la fecha de ingreso, asígnala automáticamente con la fecha actual del sistema en formato YYYY-MM-DD.
-- Si el usuario sí menciona la fecha de ingreso, respétala.
-- Si el usuario dice explícitamente "Por definir" en fecha_ingreso, déjala como "Por definir".
-- Para los demás campos no mencionados, usa "Por definir".
-- Si el usuario quiere editar un campo, usa la acción "editar".
-- Si el usuario está eligiendo entre varias opciones, usa la acción "seleccionar".
-- En consultas como "cuánto queda de X", SIEMPRE incluye el campo "producto".
+- Si falta un campo, usa "Por definir".
+- Si falta fecha_ingreso, usa la fecha actual del sistema en formato DD-MM-YYYY.
+- Si el usuario dice explícitamente "Por definir", respétalo.
+- Si el usuario corrige algo ("quise decir", "me equivoqué"), usa acción "editar".
+- Si el usuario compara, pregunta o consulta, usa acción "consultar".
+- Si el usuario pregunta por cantidades, SIEMPRE incluye "producto".
+- Si el usuario menciona varios productos, responde SOLO sobre el primero.
+- Si el usuario pide varias acciones, responde SOLO la más importante.
+- Si el usuario está eligiendo entre opciones, usa acción "seleccionar".
+- Si el usuario dice "agrega X más", interpreta como editar cantidad.
+- Si el usuario dice "cuánto queda", "cuánto hay", "cuántos quedan", es acción consultar.
 
-ACCIONES DISPONIBLES:
+ACCIONES PERMITIDAS:
 - agregar
 - eliminar
 - consultar
@@ -33,7 +40,7 @@ ACCIONES DISPONIBLES:
 - consultar_ingreso
 - seleccionar
 
-CAMPOS DISPONIBLES:
+CAMPOS PERMITIDOS:
 - producto
 - cantidad
 - tipo
@@ -46,7 +53,7 @@ CAMPOS DISPONIBLES:
 - opcion
 - accion_original
 
-Ahora interpreta este mensaje:
+Ahora interpreta este mensaje del usuario:
 {mensaje}
 """
 
@@ -66,17 +73,32 @@ Ahora interpreta este mensaje:
             raise ValueError("No se encontró JSON válido")
 
         contenido = contenido[inicio:fin+1]
-
         accion_json = json.loads(contenido)
 
-        if "accion" not in accion_json:
+        acciones_validas = [
+            "agregar", "eliminar", "consultar", "editar",
+            "consultar_tipo", "consultar_marca",
+            "consultar_caducidad", "consultar_ingreso",
+            "seleccionar"
+        ]
+
+        if "accion" not in accion_json or accion_json["accion"] not in acciones_validas:
             accion_json["accion"] = "error"
 
-        if accion_json["accion"].startswith("consultar") and "producto" not in accion_json:
+        if accion_json["accion"].startswith("consultar") and not accion_json.get("producto"):
             accion_json["producto"] = "Por definir"
 
-        if accion_json.get("fecha_ingreso") in [None, "", "-", "por definir", "Por definir"]:
-            accion_json["fecha_ingreso"] = datetime.now().strftime("%Y-%m-%d")
+        fecha = accion_json.get("fecha_ingreso", "").strip()
+
+        if fecha.lower() in ["", "por definir", "-", "none", "null"]:
+            accion_json["fecha_ingreso"] = hoy
+        else:
+            try:
+                if "-" in fecha and len(fecha.split("-")[0]) == 4:
+                    y, m, d = fecha.split("-")
+                    accion_json["fecha_ingreso"] = f"{d}-{m}-{y}"
+            except:
+                accion_json["fecha_ingreso"] = hoy
 
         return accion_json
 
