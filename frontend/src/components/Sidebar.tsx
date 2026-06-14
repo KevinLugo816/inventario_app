@@ -64,7 +64,7 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="mt-auto text-sm text-naranja2 opacity-70">
-        Bell Assistant v1.0
+        Bell Assistant v1.1
       </div>
 
     </aside>

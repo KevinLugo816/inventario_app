@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import Sidebar from "../components/Sidebar";
 import { ChatProvider } from "@/context/ChatContext";
 import { useEffect, useState } from "react";
+import { CalendarIcon } from "@heroicons/react/24/outline";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   const [fechaActual, setFechaActual] = useState("");
@@ -55,9 +56,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 Gestión de Inventario
               </h2>
 
-              <div className="flex items-center gap-2 text-orange-500">
-                <span className="text-xl">📅</span>
-                <span className="text-lg font-semibold tracking-wide">
+              {/* Fecha con panel y Heroicon */}
+              <div className="flex items-center gap-2 bg-gradient-to-br from-[#1b1b1b] to-[#141414] px-4 py-2 rounded-xl border border-[#2a2a2a] shadow-md">
+                <CalendarIcon className="w-6 h-6 text-orange-500" />
+                <span className="text-lg font-semibold text-orange-500 tracking-wide">
                   {fechaActual}
                 </span>
               </div>
