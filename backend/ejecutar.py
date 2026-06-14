@@ -15,23 +15,35 @@ def ejecutar_accion(accion):
 
     print(f"Acción: {tipo} | Producto: {producto} | Datos: {accion}")
 
+    def normalizar_cantidad(valor):
+        try:
+            return int(valor)
+        except:
+            return 0
+
+    def normalizar_fecha(valor):
+        if valor in ["", None, "-", "por definir", "Por definir"]:
+            return "Por definir"
+        try:
+            datetime.strptime(valor, "%Y-%m-%d")
+            return valor
+        except:
+            return "Por definir"
+
     if tipo == "agregar":
-        cantidad = accion.get("cantidad", 0)
+        cantidad = normalizar_cantidad(accion.get("cantidad", 0))
         tipo_p = accion.get("tipo", "Por definir")
         marca = accion.get("marca", "Por definir")
+
         fecha_ingreso = accion.get("fecha_ingreso", "Por definir")
         fecha_caducidad = accion.get("fecha_caducidad", "Por definir")
 
-        # Normalizar fecha_ingreso
-        if fecha_ingreso in ["", None, "Por definir", "-", "por definir"]:
+        # Normalizar fechas
+        fecha_ingreso = normalizar_fecha(fecha_ingreso)
+        if fecha_ingreso == "Por definir":
             fecha_ingreso = datetime.now().strftime("%Y-%m-%d")
-        else:
-            try:
-                fecha_dt = datetime.strptime(fecha_ingreso, "%Y-%m-%d")
-                if fecha_dt.year != datetime.now().year:
-                    fecha_ingreso = datetime.now().strftime("%Y-%m-%d")
-            except:
-                fecha_ingreso = datetime.now().strftime("%Y-%m-%d")
+
+        fecha_caducidad = normalizar_fecha(fecha_caducidad)
 
         producto_id = accion.get("producto_id")
 
@@ -63,7 +75,7 @@ def ejecutar_accion(accion):
         return f"Se agregaron {cantidad} unidades de '{producto}' (Marca: {marca}, Tipo: {tipo_p})."
 
     elif tipo == "eliminar":
-        cantidad = accion.get("cantidad", 0)
+        cantidad = normalizar_cantidad(accion.get("cantidad", 0))
 
         cursor.execute("SELECT * FROM productos WHERE LOWER(nombre) = LOWER(%s)", (producto,))
         productos = cursor.fetchall()
@@ -75,8 +87,7 @@ def ejecutar_accion(accion):
         producto_id = productos[0]["id"]
 
         cursor.execute("SELECT cantidad FROM productos WHERE id = %s", (producto_id,))
-        dato = cursor.fetchone()
-        cantidad_actual = dato["cantidad"]
+        cantidad_actual = cursor.fetchone()["cantidad"]
 
         if cantidad == 0:
             cursor.execute("DELETE FROM productos WHERE id = %s", (producto_id,))
@@ -105,15 +116,20 @@ def ejecutar_accion(accion):
         seleccion = accion.get("opcion", "").lower()
 
         if producto not in opciones_pendientes:
+            conn.close()
             return "No hay selección pendiente para ese producto."
 
         lista = opciones_pendientes[producto]
+
+        def fecha_key(f):
+            return f if f != "Por definir" else "9999-99-99"
 
         if seleccion.isdigit():
             n = int(seleccion)
             if 1 <= n <= len(lista):
                 elegido = lista[n - 1]
             else:
+                conn.close()
                 return "Número inválido. Intenta nuevamente."
 
         elif "marca" in seleccion:
@@ -122,6 +138,7 @@ def ejecutar_accion(accion):
             if len(coincidencias) == 1:
                 elegido = coincidencias[0]
             else:
+                conn.close()
                 return "No encontré un producto con esa marca."
 
         elif "tipo" in seleccion:
@@ -130,27 +147,25 @@ def ejecutar_accion(accion):
             if len(coincidencias) == 1:
                 elegido = coincidencias[0]
             else:
+                conn.close()
                 return "No encontré un producto con ese tipo."
 
         elif "nuevo" in seleccion:
-            lista_ordenada = sorted(lista, key=lambda p: p["fecha_ingreso"], reverse=True)
-            elegido = lista_ordenada[0]
+            elegido = sorted(lista, key=lambda p: fecha_key(p["fecha_ingreso"]), reverse=True)[0]
 
         elif "viejo" in seleccion:
-            lista_ordenada = sorted(lista, key=lambda p: p["fecha_ingreso"])
-            elegido = lista_ordenada[0]
+            elegido = sorted(lista, key=lambda p: fecha_key(p["fecha_ingreso"]))[0]
 
         elif "vence primero" in seleccion or "primero" in seleccion:
-            lista_validas = [p for p in lista if p["fecha_caducidad"] != "Por definir"]
-            lista_ordenada = sorted(lista_validas, key=lambda p: p["fecha_caducidad"])
-            elegido = lista_ordenada[0]
+            validas = [p for p in lista if p["fecha_caducidad"] != "Por definir"]
+            elegido = sorted(validas, key=lambda p: fecha_key(p["fecha_caducidad"]))[0]
 
         elif "vence después" in seleccion or "después" in seleccion:
-            lista_validas = [p for p in lista if p["fecha_caducidad"] != "Por definir"]
-            lista_ordenada = sorted(lista_validas, key=lambda p: p["fecha_caducidad"], reverse=True)
-            elegido = lista_ordenada[0]
+            validas = [p for p in lista if p["fecha_caducidad"] != "Por definir"]
+            elegido = sorted(validas, key=lambda p: fecha_key(p["fecha_caducidad"]), reverse=True)[0]
 
         else:
+            conn.close()
             return "No entendí tu selección. Intenta con: '1', 'marca Polar', 'el más nuevo', etc."
 
         accion_original = accion.get("accion_original")
@@ -158,6 +173,7 @@ def ejecutar_accion(accion):
 
         del opciones_pendientes[producto]
 
+        conn.close()
         return ejecutar_accion(accion_original)
 
     cursor.execute("SELECT * FROM productos WHERE LOWER(nombre) = LOWER(%s)", (producto,))
@@ -258,11 +274,15 @@ def ejecutar_accion(accion):
 
         if campo not in campos_validos:
             conn.close()
-            return f"El campo '{campo}' no es válido."
+            return f"El campo '{campo}' no es válido. Campos válidos: {', '.join(campos_validos)}"
 
         if not productos:
             conn.close()
             return f"No existe el producto '{producto}'."
+
+        if len(productos) > 1:
+            conn.close()
+            return "Hay varios lotes de este producto. Especifica marca o tipo."
 
         producto_id = productos[0]["id"]
 

@@ -59,7 +59,6 @@ Ahora interpreta este mensaje:
 
         contenido = respuesta.choices[0].message.content.strip()
 
-        # --- Asegurar que solo quede el JSON ---
         inicio = contenido.find("{")
         fin = contenido.rfind("}")
 
@@ -68,18 +67,14 @@ Ahora interpreta este mensaje:
 
         contenido = contenido[inicio:fin+1]
 
-        # --- Convertir a JSON ---
         accion_json = json.loads(contenido)
 
-        # --- Validar acción ---
         if "accion" not in accion_json:
             accion_json["accion"] = "error"
 
-        # --- Asegurar campo producto ---
         if accion_json["accion"].startswith("consultar") and "producto" not in accion_json:
             accion_json["producto"] = "Por definir"
 
-        # --- Normalizar fecha_ingreso si viene vacía ---
         if accion_json.get("fecha_ingreso") in [None, "", "-", "por definir", "Por definir"]:
             accion_json["fecha_ingreso"] = datetime.now().strftime("%Y-%m-%d")
 
