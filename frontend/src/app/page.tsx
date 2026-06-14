@@ -25,7 +25,25 @@ export default function Home() {
   const isClient = useIsClient();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fechaActual, setFechaActual] = useState("");
 
+  // FECHA ACTUAL
+  useEffect(() => {
+    const fecha = new Date();
+    const opciones: Intl.DateTimeFormatOptions = {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    };
+
+    const formateada = fecha
+      .toLocaleDateString("es-ES", opciones)
+      .replace(".", "");
+
+    setFechaActual(formateada);
+  }, []);
+
+  // CARGA DE INVENTARIO
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`)
       .then((res) => res.json())
@@ -55,7 +73,7 @@ export default function Home() {
 
   const colores = ["#f97316", "#fb923c", "#fdba74", "#fed7aa", "#ffedd5"];
 
-  // SEGUNDO GRÁFICO: Niveles de stock
+  // GRÁFICO DE STOCK MEJORADO
   const stockLevels = {
     alto: productos.filter((p) => p.cantidad >= 20).length,
     medio: productos.filter((p) => p.cantidad >= 10 && p.cantidad < 20).length,
@@ -183,7 +201,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Gráfico 2: Stock */}
+        {/* Gráfico 2: Stock mejorado */}
         <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a] animate-[fadeIn_.6s_ease-out]">
           <h3 className="text-xl font-semibold mb-4 text-gray-300">
             Niveles de Stock
@@ -195,6 +213,7 @@ export default function Home() {
                 <BarChart data={dataStock}>
                   <XAxis dataKey="nivel" stroke="#aaa" />
                   <YAxis stroke="#aaa" />
+
                   <Tooltip
                     contentStyle={{
                       background: "#1b1b1b",
@@ -202,12 +221,41 @@ export default function Home() {
                       borderRadius: "10px",
                       color: "#fff",
                     }}
+                    formatter={(value) => [`${value} productos`, "Cantidad"]}
                   />
-                  <Bar dataKey="cantidad" fill="#f97316" />
+
+                  <Bar
+                    dataKey="cantidad"
+                    radius={[10, 10, 0, 0]}
+                    animationDuration={800}
+                  >
+                    {dataStock.map((entry, index) => {
+                      const colores: Record<"Alto" | "Medio" | "Bajo", string> = {
+                        Alto: "#22c55e",   // verde
+                        Medio: "#eab308",  // amarillo
+                        Bajo: "#ef4444",   // rojo
+                      };
+                      const nivel = entry.nivel as keyof typeof colores;
+                      return <Cell key={index} fill={colores[nivel]} />;
+                    })}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             )}
           </div>
+        </div>
+
+        {/* PANEL DE FECHA */}
+        <div className="bg-gradient-to-br from-[#1b1b1b] to-[#141414] p-6 rounded-xl shadow-lg border border-[#2a2a2a] flex flex-col items-center justify-center animate-[fadeIn_.7s_ease-out]">
+          <h3 className="text-xl font-semibold text-gray-300 mb-2">
+            Fecha Actual
+          </h3>
+
+          <p className="text-4xl font-bold text-orange-500 tracking-wide">
+            {fechaActual}
+          </p>
+
+          <div className="h-[3px] w-full bg-orange-500/20 mt-4 rounded-full"></div>
         </div>
 
       </div>
