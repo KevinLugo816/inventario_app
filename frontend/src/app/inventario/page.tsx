@@ -12,11 +12,30 @@ type Producto = {
   fecha_caducidad: string;
 };
 
-// 🔥 Función segura para formatear fechas sin perder un día
-const formatearFecha = (fechaStr: string) => {
-  if (!fechaStr || fechaStr.toLowerCase() === "por definir") return "Por definir";
-  const [year, month, day] = fechaStr.split("-");
-  return `${day}/${month}/${year}`;
+const formatearFecha = (fecha: any) => {
+  if (!fecha || fecha.toLowerCase?.() === "por definir") return "Por definir";
+
+  if (fecha instanceof Date) {
+    const year = fecha.getFullYear();
+    const month = String(fecha.getMonth() + 1).padStart(2, "0");
+    const day = String(fecha.getDate()).padStart(2, "0");
+    return `${day}/${month}/${year}`;
+  }
+
+  if (typeof fecha === "string" && fecha.includes("-")) {
+    const [year, month, day] = fecha.split("-");
+    return `${day}/${month}/${year}`;
+  }
+
+  const fechaObj = new Date(fecha);
+  if (!isNaN(fechaObj.getTime())) {
+    const year = fechaObj.getFullYear();
+    const month = String(fechaObj.getMonth() + 1).padStart(2, "0");
+    const day = String(fechaObj.getDate()).padStart(2, "0");
+    return `${day}/${month}/${year}`;
+  }
+
+  return fecha;
 };
 
 export default function Inventario() {
