@@ -8,29 +8,35 @@ client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 def interpretar_mensaje(mensaje: str):
     hoy = datetime.now().strftime("%d-%m-%Y")
 
-    prompt = f"""
-Eres Bell, un asistente experto en gestión de inventario.
-Tu única salida debe ser SIEMPRE un JSON válido, sin texto adicional.
+    def singularizar(p):
+        p = p.lower().strip()
+        if p.endswith("es"):
+            return p[:-2]
+        if p.endswith("s"):
+            return p[:-1]
+        return p
 
-REGLAS ESTRICTAS:
-- NO escribas nada fuera del JSON.
-- NO uses comentarios.
-- NO expliques nada.
+    prompt = f"""
+Eres Bell, un asistente experto en inventario.
+Responde SOLO con JSON válido.
+
+REGLAS:
 - SOLO JSON puro.
 - Si falta un campo, usa "Por definir".
-- Si falta fecha_ingreso, usa la fecha actual del sistema en formato DD-MM-YYYY.
-- Si el usuario dice explícitamente "Por definir", respétalo.
-- Si el usuario corrige algo ("quise decir", "me equivoqué"), usa acción "editar".
-- Si el usuario compara, pregunta o consulta, usa acción "consultar".
-- Si el usuario pregunta por cantidades, SIEMPRE incluye "producto".
-- Si el usuario menciona varios productos, responde SOLO sobre el primero.
-- Si el usuario pide varias acciones, responde SOLO la más importante.
-- Si el usuario está eligiendo entre opciones, usa acción "seleccionar".
-- Si el usuario dice "agrega X más", interpreta como editar.
-- Si el usuario dice "agrega X producto", interpreta como agregar.
-- Si el usuario dice "cuánto queda", "cuánto hay", "cuántos quedan", es acción consultar.
+- Si falta fecha_ingreso, usa la fecha actual en DD-MM-YYYY.
+- Si el usuario dice "por definir", respétalo.
+- Si el usuario dice "agrega X producto", acción = agregar.
+- Si el usuario dice "agrega X más", acción = editar (cantidad).
+- Si el usuario dice "ponle X más", acción = editar (cantidad).
+- Si el usuario dice "quise decir", acción = editar.
+- Si el usuario consulta por tipo o marca, SIEMPRE incluye "producto".
+- Si el usuario consulta cantidades, SIEMPRE incluye "producto".
+- Si el usuario usa plural, conviértelo a singular.
+- Si hay varios lotes del mismo producto, acción = seleccionar.
+- Si el usuario menciona dos acciones, responde SOLO la más importante.
+- Si el usuario usa lenguaje ambiguo, prioriza: agregar > editar > consultar.
 
-ACCIONES PERMITIDAS:
+ACCIONES:
 - agregar
 - eliminar
 - consultar
@@ -41,7 +47,7 @@ ACCIONES PERMITIDAS:
 - consultar_ingreso
 - seleccionar
 
-CAMPOS PERMITIDOS:
+CAMPOS:
 - producto
 - cantidad
 - tipo
@@ -54,7 +60,7 @@ CAMPOS PERMITIDOS:
 - opcion
 - accion_original
 
-Ahora interpreta este mensaje del usuario:
+Interpreta este mensaje:
 {mensaje}
 """
 
@@ -76,6 +82,9 @@ Ahora interpreta este mensaje del usuario:
         contenido = contenido[inicio:fin+1]
         accion_json = json.loads(contenido)
 
+        if "producto" in accion_json:
+            accion_json["producto"] = singularizar(accion_json["producto"])
+
         acciones_validas = [
             "agregar", "eliminar", "consultar", "editar",
             "consultar_tipo", "consultar_marca",
@@ -83,7 +92,7 @@ Ahora interpreta este mensaje del usuario:
             "seleccionar"
         ]
 
-        if "accion" not in accion_json or accion_json["accion"] not in acciones_validas:
+        if accion_json.get("accion") not in acciones_validas:
             accion_json["accion"] = "error"
 
         if accion_json["accion"].startswith("consultar") and not accion_json.get("producto"):

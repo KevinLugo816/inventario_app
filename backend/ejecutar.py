@@ -200,6 +200,7 @@ def ejecutar_accion(accion):
                     f"Marca: {p['marca']} | Tipo: {p['tipo']} | "
                     f"Ingreso: {p['fecha_ingreso']} | Caducidad: {p['fecha_caducidad']}")
         else:
+            opciones_pendientes[producto] = productos
             total = sum(p["cantidad"] for p in productos)
             respuesta = f"Tengo varios lotes de '{producto}':\n\n"
             for i, p in enumerate(productos, start=1):
@@ -263,7 +264,7 @@ def ejecutar_accion(accion):
         return f"Ningún producto vence en {dias} días."
 
     if tipo == "consultar_ingreso":
-        fecha = accion.get("fecha_ingreso", "")
+        fecha = normalizar_fecha(accion.get("fecha_ingreso", ""))
         cursor.execute("SELECT * FROM productos WHERE fecha_ingreso = %s", (fecha,))
         productos = cursor.fetchall()
         conn.close()
