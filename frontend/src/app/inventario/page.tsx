@@ -185,9 +185,13 @@ export default function Inventario() {
                       {p.tipo}
                     </span>
                   </td>
-                  <td className="p-3 text-gray-300">{p.fecha_ingreso}</td>
+                  <td className="p-3 text-gray-300">
+                    {new Date(p.fecha_ingreso).toLocaleDateString("es-VE")}
+                  </td>
                   <td className={`p-3 font-semibold ${estadoCaducidad(p.fecha_caducidad)}`}>
-                    {p.fecha_caducidad}
+                    {p.fecha_caducidad.toLowerCase() === "por definir"
+                      ? "Por definir"
+                      : new Date(p.fecha_caducidad).toLocaleDateString("es-VE")}
                   </td>
                 </tr>
               ))}
