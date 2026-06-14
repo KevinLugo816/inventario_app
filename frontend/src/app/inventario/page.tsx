@@ -12,6 +12,13 @@ type Producto = {
   fecha_caducidad: string;
 };
 
+// 🔥 Función segura para formatear fechas sin perder un día
+const formatearFecha = (fechaStr: string) => {
+  if (!fechaStr || fechaStr.toLowerCase() === "por definir") return "Por definir";
+  const [year, month, day] = fechaStr.split("-");
+  return `${day}/${month}/${year}`;
+};
+
 export default function Inventario() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [busqueda, setBusqueda] = useState("");
@@ -25,7 +32,7 @@ export default function Inventario() {
       fecha === "-" ||
       fecha.trim() === ""
     ) {
-      return "text-gray-300"; // No aplicar color
+      return "text-gray-300";
     }
 
     const hoy = new Date();
@@ -36,9 +43,9 @@ export default function Inventario() {
     const diffTime = cad.getTime() - hoy.getTime();
     const dias = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-    if (dias < 0) return "text-red-400";        // Vencido
-    if (dias <= 30) return "text-yellow-400";   // Por vencer
-    return "text-green-400";                    // En buen estado
+    if (dias < 0) return "text-red-400";
+    if (dias <= 30) return "text-yellow-400";
+    return "text-green-400";
   };
 
 
@@ -69,21 +76,18 @@ export default function Inventario() {
     const valorA = a[orden];
     const valorB = b[orden];
 
-    // Ordenar fechas
     if (orden === "fecha_ingreso" || orden === "fecha_caducidad") {
       const fechaA = new Date(valorA).getTime();
       const fechaB = new Date(valorB).getTime();
       return direccion === "asc" ? fechaA - fechaB : fechaB - fechaA;
     }
 
-    // Ordenar números
     if (orden === "cantidad") {
       return direccion === "asc"
         ? (valorA as number) - (valorB as number)
         : (valorB as number) - (valorA as number);
     }
 
-    // Ordenar texto
     return direccion === "asc"
       ? String(valorA).localeCompare(String(valorB))
       : String(valorB).localeCompare(String(valorA));
@@ -92,12 +96,10 @@ export default function Inventario() {
   return (
     <div className="space-y-10">
 
-      {/* Título */}
       <h1 className="text-4xl font-bold tracking-tight text-orange-400">
         Inventario
       </h1>
 
-      {/* Barra de búsqueda */}
       <input
         type="text"
         placeholder="Buscar producto, marca o tipo..."
@@ -106,9 +108,7 @@ export default function Inventario() {
         onChange={e => setBusqueda(e.target.value)}
       />
 
-      {/* Tarjetas de métricas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-
         <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a]">
           <h3 className="text-gray-400 text-lg">Productos Totales</h3>
           <p className="text-5xl font-bold text-orange-500 mt-2">
@@ -129,10 +129,8 @@ export default function Inventario() {
             {productos.reduce((acc, p) => acc + p.cantidad, 0)}
           </p>
         </div>
-
       </div>
 
-      {/* Tabla moderna */}
       <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a]">
 
         <h2 className="text-2xl font-semibold mb-6 text-gray-200">
@@ -143,31 +141,24 @@ export default function Inventario() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="text-gray-400 border-b border-[#333] text-left">
-
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("nombre")}>
                   Producto {orden === "nombre" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
-
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("cantidad")}>
                   Cantidad {orden === "cantidad" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
-
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("marca")}>
                   Marca {orden === "marca" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
-
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("tipo")}>
                   Tipo {orden === "tipo" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
-
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("fecha_ingreso")}>
                   Ingreso {orden === "fecha_ingreso" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
-
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("fecha_caducidad")}>
                   Caducidad {orden === "fecha_caducidad" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
-
               </tr>
             </thead>
 
@@ -185,13 +176,15 @@ export default function Inventario() {
                       {p.tipo}
                     </span>
                   </td>
+
+                  {/* FECHA DE INGRESO SIN DESFASE */}
                   <td className="p-3 text-gray-300">
-                    {new Date(p.fecha_ingreso).toLocaleDateString("es-VE")}
+                    {formatearFecha(p.fecha_ingreso)}
                   </td>
+
+                  {/* FECHA DE CADUCIDAD SIN DESFASE */}
                   <td className={`p-3 font-semibold ${estadoCaducidad(p.fecha_caducidad)}`}>
-                    {p.fecha_caducidad.toLowerCase() === "por definir"
-                      ? "Por definir"
-                      : new Date(p.fecha_caducidad).toLocaleDateString("es-VE")}
+                    {formatearFecha(p.fecha_caducidad)}
                   </td>
                 </tr>
               ))}
