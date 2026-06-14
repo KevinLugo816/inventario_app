@@ -108,11 +108,14 @@ export default function Inventario() {
 
   if (loading) {
     return (
-      <p className="text-gray-400 text-lg animate-pulse">
-        Cargando inventario...
-      </p>
+      <div className="flex items-center justify-center h-screen">
+        <p className="text-gray-400 text-xl animate-pulse">
+          Cargando inventario...
+        </p>
+      </div>
     );
   }
+
 
   return (
     <div className="space-y-10">
