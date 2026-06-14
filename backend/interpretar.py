@@ -26,7 +26,8 @@ REGLAS ESTRICTAS:
 - Si el usuario menciona varios productos, responde SOLO sobre el primero.
 - Si el usuario pide varias acciones, responde SOLO la más importante.
 - Si el usuario está eligiendo entre opciones, usa acción "seleccionar".
-- Si el usuario dice "agrega X más", interpreta como editar cantidad.
+- Si el usuario dice "agrega X más", interpreta como editar.
+- Si el usuario dice "agrega X producto", interpreta como agregar.
 - Si el usuario dice "cuánto queda", "cuánto hay", "cuántos quedan", es acción consultar.
 
 ACCIONES PERMITIDAS:

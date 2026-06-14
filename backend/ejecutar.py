@@ -282,6 +282,10 @@ def ejecutar_accion(accion):
         campo = accion.get("campo")
         valor = accion.get("valor", "Por definir")
 
+        if campo is None:
+            conn.close()
+            return "No especificaste qué campo deseas editar."
+
         if campo not in campos_validos:
             conn.close()
             return f"El campo '{campo}' no es válido. Campos válidos: {', '.join(campos_validos)}"
