@@ -123,9 +123,9 @@ def ejecutar_accion(accion):
         return mensaje
 
     if tipo == "seleccionar":
-        seleccion = accion.get("opcion", "").lower()
+        seleccion = (accion.get("opcion") or "").lower()
 
-        if not producto or producto in ["por definir", "Por definir"]:
+        if not producto or producto in ["por definir", "Por definir", None]:
             if len(opciones_pendientes) == 0:
                 conn.close()
                 return "No hay selección pendiente."
