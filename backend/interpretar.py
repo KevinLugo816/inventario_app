@@ -148,6 +148,19 @@ Interpreta este mensaje:
                 elif accion_json.get("campo") in ["fecha_ingreso", "fecha_caducidad"] and accion_json.get("fecha_ingreso"):
                     accion_json["valor"] = accion_json["fecha_ingreso"]
 
+        if accion_json.get("accion") == "seleccionar":
+            texto = mensaje.lower()
+
+            if accion_json.get("producto") in ["", "por definir", "Por definir", None]:
+
+                patrones_seleccion = [
+                    "marca", "tipo", "lote", "nuevo", "viejo",
+                    "vence", "primero", "después", "despues"
+                ]
+
+                if any(p in texto for p in patrones_seleccion) or texto.strip().isdigit():
+                    accion_json["producto"] = None
+
         return accion_json
 
     except Exception as e:

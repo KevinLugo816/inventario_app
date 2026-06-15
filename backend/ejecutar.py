@@ -125,6 +125,12 @@ def ejecutar_accion(accion):
     if tipo == "seleccionar":
         seleccion = accion.get("opcion", "").lower()
 
+        if not producto or producto in ["por definir", "Por definir"]:
+            if len(opciones_pendientes) == 0:
+                conn.close()
+                return "No hay selección pendiente."
+            producto = list(opciones_pendientes.keys())[0]
+
         if producto not in opciones_pendientes:
             conn.close()
             return "No hay selección pendiente para ese producto."
@@ -176,7 +182,7 @@ def ejecutar_accion(accion):
 
         else:
             conn.close()
-            return "No entendí tu selección. Intenta con: '1', 'marca Polar', 'el más nuevo', etc."
+            return "No entendí tu selección. Intenta con: 'marca', 'el más nuevo', etc."
 
         accion_original = accion.get("accion_original")
         accion_original["producto_id"] = elegido["id"]
@@ -185,6 +191,7 @@ def ejecutar_accion(accion):
 
         conn.close()
         return ejecutar_accion(accion_original)
+
 
     cursor.execute("SELECT * FROM productos WHERE LOWER(nombre) = LOWER(%s)", (producto,))
     productos = cursor.fetchall()
