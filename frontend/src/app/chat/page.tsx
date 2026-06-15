@@ -82,7 +82,7 @@ export default function Chat() {
         {chat.map((msg: Mensaje, i: number) => (
           <div
             key={i}
-            className={`max-w-xl px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-lg transition-all duration-200 animate-[fadeIn_.25s_ease-out] ${
+            className={`max-w-xl px-4 py-3 rounded-2xl text-sm leading-relaxed shadow-lg transition-all duration-200 animate-[fadeIn_.25s_ease-out] whitespace-pre-wrap ${
               msg.emisor === "tú"
                 ? "bg-gradient-to-br from-orange-600 to-orange-500 text-white self-end ml-auto"
                 : "bg-[#2a2a2a] text-gray-200 self-start mr-auto"
