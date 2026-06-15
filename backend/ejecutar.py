@@ -193,23 +193,37 @@ def ejecutar_accion(accion):
         if len(productos) == 0:
             conn.close()
             return f"No tengo registros de '{producto}'."
-        elif len(productos) == 1:
+
+        if len(productos) == 1:
             p = productos[0]
             conn.close()
-            return (f"Producto: {p['nombre']} | Cantidad: {p['cantidad']} | "
-                    f"Marca: {p['marca']} | Tipo: {p['tipo']} | "
-                    f"Ingreso: {p['fecha_ingreso']} | Caducidad: {p['fecha_caducidad']}")
-        else:
-            opciones_pendientes[producto] = productos
-            total = sum(p["cantidad"] for p in productos)
-            respuesta = f"Tengo varios lotes de '{producto}':\n\n"
-            for i, p in enumerate(productos, start=1):
-                respuesta += (f"{i}) Marca: {p['marca']} | Tipo: {p['tipo']} | "
-                              f"Ingreso: {p['fecha_ingreso']} | Caducidad: {p['fecha_caducidad']} | "
-                              f"Cantidad: {p['cantidad']}\n")
-            respuesta += f"\nTotal disponible: {total} unidades."
-            conn.close()
-            return respuesta
+            return (
+                f"Producto: {p['nombre']}\n"
+                f"- Cantidad: {p['cantidad']}\n"
+                f"- Marca: {p['marca']}\n"
+                f"- Tipo: {p['tipo']}\n"
+                f"- Ingreso: {p['fecha_ingreso']}\n"
+                f"- Caducidad: {p['fecha_caducidad']}"
+            )
+
+        opciones_pendientes[producto] = productos
+        total = sum(p["cantidad"] for p in productos)
+
+        respuesta = f"Lotes de {producto}:\n\n"
+
+        for i, p in enumerate(productos, start=1):
+            respuesta += (
+                f"{i})\n"
+                f"- Marca: {p['marca']}\n"
+                f"- Tipo: {p['tipo']}\n"
+                f"- Ingreso: {p['fecha_ingreso']}\n"
+                f"- Caducidad: {p['fecha_caducidad']}\n"
+                f"- Cantidad: {p['cantidad']}\n\n"
+            )
+
+        respuesta += f"Total disponible: {total} unidades."
+        conn.close()
+        return respuesta
 
     if tipo == "consultar_marca":
         marca = accion.get("marca", "")
@@ -219,10 +233,18 @@ def ejecutar_accion(accion):
         )
         productos = cursor.fetchall()
         conn.close()
-        if productos:
-            p = productos[0]
-            return f"{p['nombre']} marca {p['marca']} → {p['cantidad']} unidades, vence {p['fecha_caducidad']}."
-        return f"No encontré {producto} de marca {marca}."
+
+        if not productos:
+            return f"No encontré {producto} de marca {marca}."
+
+        p = productos[0]
+        return (
+            f"{p['nombre']} (Marca: {p['marca']})\n"
+            f"- Cantidad: {p['cantidad']}\n"
+            f"- Tipo: {p['tipo']}\n"
+            f"- Ingreso: {p['fecha_ingreso']}\n"
+            f"- Caducidad: {p['fecha_caducidad']}"
+        )
 
     if tipo == "consultar_tipo":
         tipo_p = accion.get("tipo", "")
@@ -232,10 +254,26 @@ def ejecutar_accion(accion):
         )
         productos = cursor.fetchall()
         conn.close()
-        if productos:
-            total = sum(p["cantidad"] for p in productos)
-            return f"{producto} tipo {tipo_p} → {total} unidades."
-        return f"No encontré {producto} de tipo {tipo_p}."
+
+        if not productos:
+            return f"No encontré {producto} de tipo {tipo_p}."
+
+        total = sum(p["cantidad"] for p in productos)
+
+        respuesta = f"Lotes de {producto} tipo {tipo_p}:\n\n"
+
+        for i, p in enumerate(productos, start=1):
+            respuesta += (
+                f"{i})\n"
+                f"- Marca: {p['marca']}\n"
+                f"- Cantidad: {p['cantidad']}\n"
+                f"- Ingreso: {p['fecha_ingreso']}\n"
+                f"- Caducidad: {p['fecha_caducidad']}\n\n"
+            )
+
+        respuesta += f"Total disponible: {total} unidades."
+        return respuesta
+
 
     if tipo == "consultar_caducidad":
         dias = int(accion.get("dias", 0))
@@ -243,6 +281,7 @@ def ejecutar_accion(accion):
 
         cursor.execute("SELECT * FROM productos WHERE fecha_caducidad != 'Por definir'")
         productos = cursor.fetchall()
+        conn.close()
 
         proximos = []
         for p in productos:
@@ -253,15 +292,19 @@ def ejecutar_accion(accion):
             except:
                 continue
 
-        conn.close()
+        if not proximos:
+            return f"Ningún producto vence en {dias} días."
 
-        if proximos:
-            respuesta = f"Productos que vencen en {dias} días:\n"
-            for p in proximos:
-                respuesta += f"- {p['nombre']} ({p['marca']}) vence {p['fecha_caducidad']}\n"
-            return respuesta
+        respuesta = f"Productos que vencen en {dias} días:\n\n"
 
-        return f"Ningún producto vence en {dias} días."
+        for p in proximos:
+            respuesta += (
+                f"- {p['nombre']} (Marca: {p['marca']})\n"
+                f"  Caduca: {p['fecha_caducidad']}\n"
+                f"  Cantidad: {p['cantidad']}\n\n"
+            )
+
+        return respuesta
 
     if tipo == "consultar_ingreso":
         fecha = normalizar_fecha(accion.get("fecha_ingreso", ""))
@@ -269,13 +312,22 @@ def ejecutar_accion(accion):
         productos = cursor.fetchall()
         conn.close()
 
-        if productos:
-            respuesta = f"Productos ingresados en {fecha}:\n"
-            for p in productos:
-                respuesta += f"- {p['nombre']} ({p['cantidad']} unidades)\n"
-            return respuesta
+        if not productos:
+            return f"No se ingresaron productos en {fecha}."
 
-        return f"No se ingresaron productos en {fecha}."
+        respuesta = f"Productos ingresados en {fecha}:\n\n"
+
+        for p in productos:
+            respuesta += (
+                f"- {p['nombre']}\n"
+                f"  Cantidad: {p['cantidad']}\n"
+                f"  Marca: {p['marca']}\n"
+                f"  Tipo: {p['tipo']}\n"
+                f"  Caducidad: {p['fecha_caducidad']}\n\n"
+            )
+
+        return respuesta
+
 
     campos_validos = ["nombre", "cantidad", "tipo", "marca", "fecha_ingreso", "fecha_caducidad"]
 
