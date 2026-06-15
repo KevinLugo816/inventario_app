@@ -11,7 +11,7 @@ def ejecutar_accion(accion):
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     tipo = accion.get("accion")
-    producto = accion.get("producto", "").strip().lower()
+    producto = (accion.get("producto") or "").strip().lower()
 
     print(f"Acción: {tipo} | Producto: {producto} | Datos: {accion}")
 
@@ -149,7 +149,7 @@ def ejecutar_accion(accion):
                 return "Número inválido. Intenta nuevamente."
 
         elif "marca" in seleccion:
-            marca = seleccion.replace("marca", "").strip()
+            marca = (seleccion.replace("marca", "") or "").strip()
             coincidencias = [p for p in lista if p["marca"].lower() == marca.lower()]
             if len(coincidencias) == 1:
                 elegido = coincidencias[0]
@@ -158,7 +158,7 @@ def ejecutar_accion(accion):
                 return "No encontré un producto con esa marca."
 
         elif "tipo" in seleccion:
-            tipo_p = seleccion.replace("tipo", "").strip()
+            tipo_p = (seleccion.replace("tipo", "") or "").strip()
             coincidencias = [p for p in lista if p["tipo"].lower() == tipo_p.lower()]
             if len(coincidencias) == 1:
                 elegido = coincidencias[0]
@@ -314,7 +314,7 @@ def ejecutar_accion(accion):
         return respuesta
 
     if tipo == "consultar_ingreso":
-        fecha = normalizar_fecha(accion.get("fecha_ingreso", ""))
+        fecha = normalizar_fecha(accion.get("fecha_ingreso") or "")
         cursor.execute("SELECT * FROM productos WHERE fecha_ingreso = %s", (fecha,))
         productos = cursor.fetchall()
         conn.close()

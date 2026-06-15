@@ -21,9 +21,6 @@ def interpretar_mensaje(mensaje: str, contexto: str = ""):
             return p[:-1]
         return p
 
-    # -----------------------------
-    # PROMPT CON CONTEXTO REAL
-    # -----------------------------
     prompt = f"""
 Eres Bell, un asistente experto en inventario.
 Responde SOLO con JSON válido, sin texto adicional.
@@ -109,11 +106,9 @@ Interpreta el mensaje del usuario según las reglas anteriores.
 
         accion_json = json.loads(contenido[inicio:fin+1])
 
-        # Normalizar producto
         if "producto" in accion_json and accion_json["producto"]:
             accion_json["producto"] = singularizar(accion_json["producto"])
 
-        # Normalizar fecha_ingreso
         fecha = accion_json.get("fecha_ingreso", "").strip()
         if fecha.lower() in ["", "por definir", "-", "none", "null"]:
             accion_json["fecha_ingreso"] = hoy
