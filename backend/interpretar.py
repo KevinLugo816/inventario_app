@@ -37,6 +37,8 @@ REGLAS:
 - Si el usuario usa lenguaje ambiguo, prioriza: agregar > editar > consultar.
 - En edición, usa SIEMPRE el campo "campo".
 - En edición, usa SIEMPRE el campo "valor".
+- Si el mensaje del usuario es una respuesta corta (como "marca Mary", "marca Girasol", "2", "el más nuevo", "el que vence primero"), y NO menciona un producto explícito, entonces acción = seleccionar.
+
 
 ACCIONES:
 - agregar
