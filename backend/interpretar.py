@@ -5,12 +5,7 @@ from datetime import datetime
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-def interpretar_mensaje(mensaje: str, contexto: str = ""):
-    """
-    mensaje  = mensaje actual del usuario
-    contexto = última respuesta del backend (puede ser vacío)
-    """
-
+def interpretar_mensaje(mensaje: str):
     hoy = datetime.now().strftime("%d-%m-%Y")
 
     def singularizar(p):
@@ -23,46 +18,27 @@ def interpretar_mensaje(mensaje: str, contexto: str = ""):
 
     prompt = f"""
 Eres Bell, un asistente experto en inventario.
-Responde SOLO con JSON válido, sin texto adicional.
+Responde SOLO con JSON válido.
 
-CONTEXTO DE LA CONVERSACIÓN:
-"{contexto}"
-
-MENSAJE DEL USUARIO:
-"{mensaje}"
-
-REGLAS GENERALES:
+REGLAS:
 - SOLO JSON puro.
 - Si falta un campo, usa "Por definir".
 - Si falta fecha_ingreso, usa la fecha actual en DD-MM-YYYY.
-- Convierte plurales a singular.
-- Prioridad: agregar > editar > eliminar > consultar > seleccionar.
+- Si el usuario dice "por definir", respétalo.
+- Si el usuario dice "agrega X producto", acción = agregar.
+- Si el usuario dice "agrega X más", acción = editar (cantidad).
+- Si el usuario dice "ponle X más", acción = editar (cantidad).
+- Si el usuario dice "quise decir", acción = editar.
+- Si el usuario consulta por tipo o marca, SIEMPRE incluye "producto".
+- Si el usuario consulta cantidades, SIEMPRE incluye "producto".
+- Si el usuario usa plural, conviértelo a singular.
+- Si hay varios lotes del mismo producto, acción = seleccionar.
+- Si el usuario menciona dos acciones, responde SOLO la más importante.
+- Si el usuario usa lenguaje ambiguo, prioriza: agregar > editar > consultar.
+- En edición, usa SIEMPRE el campo "campo" para indicar qué se edita (nombre, cantidad, tipo, marca, fecha_ingreso, fecha_caducidad).
+- En edición, usa SIEMPRE el campo "valor" para el nuevo valor.
 
-REGLAS PARA SELECCIONAR:
-- Si el contexto indica que el sistema pidió especificar lote, marca o tipo,
-  entonces cualquier respuesta corta del usuario debe interpretarse como acción = seleccionar.
-- Respuestas cortas incluyen:
-  "marca X", "tipo X", "lote X", "2", "el más nuevo", "el más viejo",
-  "el que vence primero", "el que vence después".
-- En selección:
-  - "producto": null
-  - "opcion": mensaje exacto del usuario
-
-REGLAS PARA CONSULTAR:
-- "cuánto queda", "cuánto hay", "qué cantidad" → consultar
-- Consultas SIEMPRE incluyen "producto".
-
-REGLAS PARA EDITAR:
-- "cambia", "modifica", "actualiza", "edita" → editar
-- En edición:
-  - "campo": campo a editar
-  - "valor": nuevo valor
-
-REGLAS PARA AGREGAR:
-- "agrega X producto" → agregar
-- "agrega X más" o "ponle X más" → editar cantidad
-
-ACCIONES PERMITIDAS:
+ACCIONES:
 - agregar
 - eliminar
 - consultar
@@ -73,7 +49,7 @@ ACCIONES PERMITIDAS:
 - consultar_ingreso
 - seleccionar
 
-CAMPOS PERMITIDOS:
+CAMPOS:
 - producto
 - cantidad
 - tipo
@@ -86,7 +62,8 @@ CAMPOS PERMITIDOS:
 - opcion
 - accion_original
 
-Interpreta el mensaje del usuario según las reglas anteriores.
+Interpreta este mensaje:
+{mensaje}
 """
 
     try:
@@ -104,12 +81,27 @@ Interpreta el mensaje del usuario según las reglas anteriores.
         if inicio == -1 or fin == -1:
             raise ValueError("No se encontró JSON válido")
 
-        accion_json = json.loads(contenido[inicio:fin+1])
+        contenido = contenido[inicio:fin+1]
+        accion_json = json.loads(contenido)
 
-        if "producto" in accion_json and accion_json["producto"]:
+        if "producto" in accion_json:
             accion_json["producto"] = singularizar(accion_json["producto"])
 
+        acciones_validas = [
+            "agregar", "eliminar", "consultar", "editar",
+            "consultar_tipo", "consultar_marca",
+            "consultar_caducidad", "consultar_ingreso",
+            "seleccionar"
+        ]
+
+        if accion_json.get("accion") not in acciones_validas:
+            accion_json["accion"] = "error"
+
+        if accion_json["accion"].startswith("consultar") and not accion_json.get("producto"):
+            accion_json["producto"] = "Por definir"
+
         fecha = accion_json.get("fecha_ingreso", "").strip()
+
         if fecha.lower() in ["", "por definir", "-", "none", "null"]:
             accion_json["fecha_ingreso"] = hoy
         else:
@@ -119,6 +111,42 @@ Interpreta el mensaje del usuario según las reglas anteriores.
                     accion_json["fecha_ingreso"] = f"{d}-{m}-{y}"
             except:
                 accion_json["fecha_ingreso"] = hoy
+
+        if accion_json.get("accion") == "editar":
+            texto = mensaje.lower()
+
+            campo = accion_json.get("campo")
+            if not campo:
+                if "marca" in texto:
+                    campo = "marca"
+                elif "tipo" in texto:
+                    campo = "tipo"
+                elif "cantidad" in texto or "cuánto" in texto or "cuantos" in texto:
+                    campo = "cantidad"
+                elif "nombre" in texto or "producto" in texto:
+                    campo = "nombre"
+                elif "fecha de ingreso" in texto or "fecha ingreso" in texto:
+                    campo = "fecha_ingreso"
+                elif "fecha de caducidad" in texto or "vence" in texto or "caducidad" in texto:
+                    campo = "fecha_caducidad"
+                accion_json["campo"] = campo if campo else "Por definir"
+
+            if accion_json.get("valor") in [None, "", "Por definir"]:
+                # Si está editando marca y vino "marca"
+                if accion_json.get("campo") == "marca" and accion_json.get("marca"):
+                    accion_json["valor"] = accion_json["marca"]
+                # Si está editando tipo y vino "tipo"
+                elif accion_json.get("campo") == "tipo" and accion_json.get("tipo"):
+                    accion_json["valor"] = accion_json["tipo"]
+                # Si está editando nombre y vino "producto"
+                elif accion_json.get("campo") == "nombre" and accion_json.get("producto"):
+                    accion_json["valor"] = accion_json["producto"]
+                # Si está editando cantidad y vino "cantidad"
+                elif accion_json.get("campo") == "cantidad" and accion_json.get("cantidad") not in [None, ""]:
+                    accion_json["valor"] = accion_json["cantidad"]
+                # Si está editando fecha_ingreso o fecha_caducidad y vino fecha
+                elif accion_json.get("campo") in ["fecha_ingreso", "fecha_caducidad"] and accion_json.get("fecha_ingreso"):
+                    accion_json["valor"] = accion_json["fecha_ingreso"]
 
         return accion_json
 

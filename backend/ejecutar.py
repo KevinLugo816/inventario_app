@@ -11,7 +11,7 @@ def ejecutar_accion(accion):
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     tipo = accion.get("accion")
-    producto = (accion.get("producto") or "").strip().lower()
+    producto = accion.get("producto", "").strip().lower()
 
     print(f"Acción: {tipo} | Producto: {producto} | Datos: {accion}")
 
@@ -123,13 +123,7 @@ def ejecutar_accion(accion):
         return mensaje
 
     if tipo == "seleccionar":
-        seleccion = (accion.get("opcion") or "").lower()
-
-        if not producto or producto in ["por definir", "Por definir", None]:
-            if len(opciones_pendientes) == 0:
-                conn.close()
-                return "No hay selección pendiente."
-            producto = list(opciones_pendientes.keys())[0]
+        seleccion = accion.get("opcion", "").lower()
 
         if producto not in opciones_pendientes:
             conn.close()
@@ -149,7 +143,7 @@ def ejecutar_accion(accion):
                 return "Número inválido. Intenta nuevamente."
 
         elif "marca" in seleccion:
-            marca = (seleccion.replace("marca", "") or "").strip()
+            marca = seleccion.replace("marca", "").strip()
             coincidencias = [p for p in lista if p["marca"].lower() == marca.lower()]
             if len(coincidencias) == 1:
                 elegido = coincidencias[0]
@@ -158,7 +152,7 @@ def ejecutar_accion(accion):
                 return "No encontré un producto con esa marca."
 
         elif "tipo" in seleccion:
-            tipo_p = (seleccion.replace("tipo", "") or "").strip()
+            tipo_p = seleccion.replace("tipo", "").strip()
             coincidencias = [p for p in lista if p["tipo"].lower() == tipo_p.lower()]
             if len(coincidencias) == 1:
                 elegido = coincidencias[0]
@@ -182,7 +176,7 @@ def ejecutar_accion(accion):
 
         else:
             conn.close()
-            return "No entendí tu selección. Intenta con: 'marca', 'el más nuevo', etc."
+            return "No entendí tu selección. Intenta con: '1', 'marca Polar', 'el más nuevo', etc."
 
         accion_original = accion.get("accion_original")
         accion_original["producto_id"] = elegido["id"]
@@ -314,7 +308,7 @@ def ejecutar_accion(accion):
         return respuesta
 
     if tipo == "consultar_ingreso":
-        fecha = normalizar_fecha(accion.get("fecha_ingreso") or "")
+        fecha = normalizar_fecha(accion.get("fecha_ingreso", ""))
         cursor.execute("SELECT * FROM productos WHERE fecha_ingreso = %s", (fecha,))
         productos = cursor.fetchall()
         conn.close()
