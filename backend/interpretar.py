@@ -35,6 +35,8 @@ REGLAS:
 - Si hay varios lotes del mismo producto, acción = seleccionar.
 - Si el usuario menciona dos acciones, responde SOLO la más importante.
 - Si el usuario usa lenguaje ambiguo, prioriza: agregar > editar > consultar.
+- En edición, usa SIEMPRE el campo "campo" para indicar qué se edita (nombre, cantidad, tipo, marca, fecha_ingreso, fecha_caducidad).
+- En edición, usa SIEMPRE el campo "valor" para el nuevo valor.
 
 ACCIONES:
 - agregar
@@ -109,6 +111,42 @@ Interpreta este mensaje:
                     accion_json["fecha_ingreso"] = f"{d}-{m}-{y}"
             except:
                 accion_json["fecha_ingreso"] = hoy
+
+        if accion_json.get("accion") == "editar":
+            texto = mensaje.lower()
+
+            campo = accion_json.get("campo")
+            if not campo:
+                if "marca" in texto:
+                    campo = "marca"
+                elif "tipo" in texto:
+                    campo = "tipo"
+                elif "cantidad" in texto or "cuánto" in texto or "cuantos" in texto:
+                    campo = "cantidad"
+                elif "nombre" in texto or "producto" in texto:
+                    campo = "nombre"
+                elif "fecha de ingreso" in texto or "fecha ingreso" in texto:
+                    campo = "fecha_ingreso"
+                elif "fecha de caducidad" in texto or "vence" in texto or "caducidad" in texto:
+                    campo = "fecha_caducidad"
+                accion_json["campo"] = campo if campo else "Por definir"
+
+            if accion_json.get("valor") in [None, "", "Por definir"]:
+                # Si está editando marca y vino "marca"
+                if accion_json.get("campo") == "marca" and accion_json.get("marca"):
+                    accion_json["valor"] = accion_json["marca"]
+                # Si está editando tipo y vino "tipo"
+                elif accion_json.get("campo") == "tipo" and accion_json.get("tipo"):
+                    accion_json["valor"] = accion_json["tipo"]
+                # Si está editando nombre y vino "producto"
+                elif accion_json.get("campo") == "nombre" and accion_json.get("producto"):
+                    accion_json["valor"] = accion_json["producto"]
+                # Si está editando cantidad y vino "cantidad"
+                elif accion_json.get("campo") == "cantidad" and accion_json.get("cantidad") not in [None, ""]:
+                    accion_json["valor"] = accion_json["cantidad"]
+                # Si está editando fecha_ingreso o fecha_caducidad y vino fecha
+                elif accion_json.get("campo") in ["fecha_ingreso", "fecha_caducidad"] and accion_json.get("fecha_ingreso"):
+                    accion_json["valor"] = accion_json["fecha_ingreso"]
 
         return accion_json
 
