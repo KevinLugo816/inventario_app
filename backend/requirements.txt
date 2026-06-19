@@ -5,3 +5,4 @@ sqlalchemy
 groq
 gunicorn
 python-dotenv
+psycopg2-binary
