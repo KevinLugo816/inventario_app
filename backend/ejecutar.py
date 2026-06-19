@@ -1,368 +1,323 @@
-from datetime import datetime, timedelta
-from database import get_connection
-import psycopg2.extras
+from datetime import datetime
+from models import db, Category, Brand, Product, InventoryBatch
 
 opciones_pendientes = {}
+
+
+def normalizar_cantidad(valor):
+    try:
+        return int(valor)
+    except:
+        return 0
+
+
+def normalizar_fecha(valor):
+    if not valor or valor in ["-", "por definir", "Por definir", None]:
+        return None
+
+    try:
+        if "-" in valor and len(valor.split("-")[0]) == 2:
+            d, m, y = valor.split("-")
+            return f"{y}-{m}-{d}"
+    except:
+        pass
+
+    try:
+        datetime.strptime(valor, "%Y-%m-%d")
+        return valor
+    except:
+        return None
+
+
+def obtener_o_crear_categoria(nombre):
+    if not nombre:
+        nombre = "General"
+
+    cat = Category.query.filter_by(name=nombre).first()
+    if not cat:
+        cat = Category(name=nombre)
+        db.session.add(cat)
+        db.session.commit()
+    return cat
+
+
+def obtener_o_crear_marca(nombre):
+    if not nombre:
+        nombre = "Sin marca"
+
+    marca = Brand.query.filter_by(name=nombre).first()
+    if not marca:
+        marca = Brand(name=nombre)
+        db.session.add(marca)
+        db.session.commit()
+    return marca
+
+
+def obtener_o_crear_producto(nombre, marca, categoria, tipo, contenido_valor, contenido_unidad, alerta):
+    prod = Product.query.filter_by(
+        name=nombre,
+        brand_id=marca.id,
+        category_id=categoria.id,
+        type_variety=tipo,
+        content_value=contenido_valor,
+        content_unit=contenido_unidad
+    ).first()
+
+    if not prod:
+        prod = Product(
+            name=nombre,
+            brand_id=marca.id,
+            category_id=categoria.id,
+            type_variety=tipo,
+            content_value=contenido_valor,
+            content_unit=contenido_unidad,
+            stock_alert=alerta
+        )
+        db.session.add(prod)
+        db.session.commit()
+
+    return prod
+
 
 def ejecutar_accion(accion):
     global opciones_pendientes
 
-    conn = get_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-
     tipo = accion.get("accion")
-    producto = accion.get("producto", "").strip().lower()
+    nombre_producto = accion.get("producto", "").strip().lower()
 
-    print(f"Acción: {tipo} | Producto: {producto} | Datos: {accion}")
+    # Datos comunes
+    marca_txt = accion.get("marca")
+    categoria_txt = accion.get("categoria")
+    tipo_variedad = accion.get("tipo")
+    contenido_valor = accion.get("contenido_valor")
+    contenido_unidad = accion.get("contenido_unidad")
+    alerta = accion.get("stock_alert")
 
-    def normalizar_cantidad(valor):
-        try:
-            return int(valor)
-        except:
-            return 0
+    cantidad = normalizar_cantidad(accion.get("cantidad"))
+    fecha_ingreso = normalizar_fecha(accion.get("fecha_ingreso"))
+    fecha_caducidad = normalizar_fecha(accion.get("fecha_caducidad"))
 
-    def normalizar_fecha(valor):
-        """
-        Acepta:
-        - "Por definir"
-        - DD-MM-YYYY  → convierte a YYYY-MM-DD
-        - YYYY-MM-DD → lo deja igual
-        """
-        if valor in ["", None, "-", "por definir", "Por definir"]:
-            return "Por definir"
+    if not fecha_ingreso:
+        fecha_ingreso = datetime.now().strftime("%Y-%m-%d")
 
-        try:
-            if "-" in valor and len(valor.split("-")[0]) == 2:
-                d, m, y = valor.split("-")
-                return f"{y}-{m}-{d}"
-        except:
-            pass
-
-        try:
-            datetime.strptime(valor, "%Y-%m-%d")
-            return valor
-        except:
-            return "Por definir"
 
     if tipo == "agregar":
-        cantidad = normalizar_cantidad(accion.get("cantidad", 0))
-        tipo_p = accion.get("tipo", "Por definir")
-        marca = accion.get("marca", "Por definir")
+        categoria = obtener_o_crear_categoria(categoria_txt)
+        marca = obtener_o_crear_marca(marca_txt)
 
-        fecha_ingreso = normalizar_fecha(accion.get("fecha_ingreso", "Por definir"))
-        fecha_caducidad = normalizar_fecha(accion.get("fecha_caducidad", "Por definir"))
+        producto = obtener_o_crear_producto(
+            nombre_producto,
+            marca,
+            categoria,
+            tipo_variedad,
+            contenido_valor,
+            contenido_unidad,
+            alerta
+        )
 
-        if fecha_ingreso == "Por definir":
-            fecha_ingreso = datetime.now().strftime("%Y-%m-%d")
+        # Crear lote
+        lote = InventoryBatch(
+            product_id=producto.id,
+            quantity=cantidad,
+            arrival_date=fecha_ingreso,
+            expiration_date=fecha_caducidad
+        )
 
-        producto_id = accion.get("producto_id")
+        db.session.add(lote)
+        db.session.commit()
 
-        if producto_id:
-            cursor.execute("""
-                UPDATE productos SET 
-                    cantidad = cantidad + %s,
-                    tipo = CASE WHEN %s != 'Por definir' THEN %s ELSE tipo END,
-                    marca = CASE WHEN %s != 'Por definir' THEN %s ELSE marca END,
-                    fecha_ingreso = CASE WHEN %s != 'Por definir' THEN %s ELSE fecha_ingreso END,
-                    fecha_caducidad = CASE WHEN %s != 'Por definir' THEN %s ELSE fecha_caducidad END
-                WHERE id = %s
-            """, (
-                cantidad, tipo_p, tipo_p,
-                marca, marca,
-                fecha_ingreso, fecha_ingreso,
-                fecha_caducidad, fecha_caducidad,
-                producto_id
-            ))
+        total = sum(l.quantity for l in producto.batches)
 
-        else:
-            cursor.execute("""
-                INSERT INTO productos (nombre, cantidad, tipo, marca, fecha_ingreso, fecha_caducidad)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (producto, cantidad, tipo_p, marca, fecha_ingreso, fecha_caducidad))
+        return (
+            f"Producto agregado correctamente.\n\n"
+            f"Producto: {producto.name}\n"
+            f"Marca: {marca.name}\n"
+            f"Categoría: {categoria.name}\n"
+            f"Tipo/Variedad: {producto.type_variety}\n"
+            f"Contenido: {producto.content_value} {producto.content_unit}\n\n"
+            f"Lote registrado:\n"
+            f"- Cantidad: {cantidad}\n"
+            f"- Ingreso: {fecha_ingreso}\n"
+            f"- Caducidad: {fecha_caducidad or 'Sin fecha'}\n\n"
+            f"Cantidad total disponible ahora: {total} unidades."
+        )
 
-        conn.commit()
-        conn.close()
-        return f"Se agregaron {cantidad} unidades de '{producto}' (Marca: {marca}, Tipo: {tipo_p})."
 
-    elif tipo == "eliminar":
-        cantidad = normalizar_cantidad(accion.get("cantidad", 0))
-
-        cursor.execute("SELECT * FROM productos WHERE LOWER(nombre) = LOWER(%s)", (producto,))
-        productos = cursor.fetchall()
+    if tipo == "consultar":
+        productos = Product.query.filter(Product.name.ilike(nombre_producto)).all()
 
         if not productos:
-            conn.close()
-            return f"No existe el producto '{producto}'."
+            return f"No tengo registros del producto '{nombre_producto}'."
 
-        producto_id = productos[0]["id"]
+        if len(productos) == 1:
+            p = productos[0]
+            lotes = InventoryBatch.query.filter_by(product_id=p.id).all()
+            total = sum(l.quantity for l in lotes)
 
-        cursor.execute("SELECT cantidad FROM productos WHERE id = %s", (producto_id,))
-        cantidad_actual = cursor.fetchone()["cantidad"]
+            respuesta = (
+                f"Producto: {p.name}\n"
+                f"Marca: {p.brand.name}\n"
+                f"Categoría: {p.category.name}\n"
+                f"Tipo/Variedad: {p.type_variety}\n"
+                f"Contenido: {p.content_value} {p.content_unit}\n\n"
+                f"Lotes disponibles:\n"
+            )
 
-        if cantidad == 0:
-            cursor.execute("DELETE FROM productos WHERE id = %s", (producto_id,))
-            conn.commit()
-            conn.close()
-            return f"Producto '{producto}' eliminado completamente."
+            for i, l in enumerate(lotes, start=1):
+                respuesta += (
+                    f"{i}) Lote #{l.id}\n"
+                    f"- Cantidad: {l.quantity}\n"
+                    f"- Ingreso: {l.arrival_date}\n"
+                    f"- Caducidad: {l.expiration_date or 'Sin fecha'}\n\n"
+                )
 
-        if cantidad > cantidad_actual:
-            conn.close()
-            return f"No puedes eliminar {cantidad}. Solo hay {cantidad_actual} unidades disponibles."
+            respuesta += f"Total disponible: {total} unidades."
+            return respuesta
 
-        nueva = cantidad_actual - cantidad
+        # Si hay varios productos iguales (diferentes marcas o tipos)
+        opciones_pendientes[nombre_producto] = productos
 
-        if nueva == 0:
-            cursor.execute("DELETE FROM productos WHERE id = %s", (producto_id,))
-            mensaje = f"Se eliminaron todas las unidades de '{producto}'."
-        else:
-            cursor.execute("UPDATE productos SET cantidad = %s WHERE id = %s", (nueva, producto_id))
-            mensaje = f"Se eliminaron {cantidad} unidades de '{producto}'. Quedan {nueva}."
+        respuesta = f"Se encontraron varias variantes de '{nombre_producto}':\n\n"
 
-        conn.commit()
-        conn.close()
-        return mensaje
+        for i, p in enumerate(productos, start=1):
+            respuesta += (
+                f"{i})\n"
+                f"- Marca: {p.brand.name}\n"
+                f"- Tipo/Variedad: {p.type_variety}\n"
+                f"- Contenido: {p.content_value} {p.content_unit}\n\n"
+            )
+
+        respuesta += "Indica el número o una característica (por ejemplo: 'marca Mary')."
+        return respuesta
+
 
     if tipo == "seleccionar":
         seleccion = accion.get("opcion", "").lower()
 
-        if producto not in opciones_pendientes:
-            conn.close()
+        if nombre_producto not in opciones_pendientes:
             return "No hay selección pendiente para ese producto."
 
-        lista = opciones_pendientes[producto]
+        lista = opciones_pendientes[nombre_producto]
 
-        def fecha_key(f):
-            return f if f != "Por definir" else "9999-99-99"
-
+        # Selección por número
         if seleccion.isdigit():
             n = int(seleccion)
             if 1 <= n <= len(lista):
                 elegido = lista[n - 1]
             else:
-                conn.close()
-                return "Número inválido. Intenta nuevamente."
-
-        elif "marca" in seleccion:
-            marca = seleccion.replace("marca", "").strip()
-            coincidencias = [p for p in lista if p["marca"].lower() == marca.lower()]
-            if len(coincidencias) == 1:
-                elegido = coincidencias[0]
-            else:
-                conn.close()
-                return "No encontré un producto con esa marca."
-
-        elif "tipo" in seleccion:
-            tipo_p = seleccion.replace("tipo", "").strip()
-            coincidencias = [p for p in lista if p["tipo"].lower() == tipo_p.lower()]
-            if len(coincidencias) == 1:
-                elegido = coincidencias[0]
-            else:
-                conn.close()
-                return "No encontré un producto con ese tipo."
-
-        elif "nuevo" in seleccion:
-            elegido = sorted(lista, key=lambda p: fecha_key(p["fecha_ingreso"]), reverse=True)[0]
-
-        elif "viejo" in seleccion:
-            elegido = sorted(lista, key=lambda p: fecha_key(p["fecha_ingreso"]))[0]
-
-        elif "vence primero" in seleccion or "primero" in seleccion:
-            validas = [p for p in lista if p["fecha_caducidad"] != "Por definir"]
-            elegido = sorted(validas, key=lambda p: fecha_key(p["fecha_caducidad"]))[0]
-
-        elif "vence después" in seleccion or "después" in seleccion:
-            validas = [p for p in lista if p["fecha_caducidad"] != "Por definir"]
-            elegido = sorted(validas, key=lambda p: fecha_key(p["fecha_caducidad"]), reverse=True)[0]
-
+                return "Número inválido."
         else:
-            conn.close()
-            return "No entendí tu selección. Intenta con: '1', 'marca Polar', 'el más nuevo', etc."
+            # Selección por marca
+            for p in lista:
+                if p.brand.name.lower() in seleccion:
+                    elegido = p
+                    break
+            else:
+                return "No encontré coincidencias."
 
-        accion_original = accion.get("accion_original")
-        accion_original["producto_id"] = elegido["id"]
+        del opciones_pendientes[nombre_producto]
 
-        del opciones_pendientes[producto]
+        lotes = InventoryBatch.query.filter_by(product_id=elegido.id).all()
+        total = sum(l.quantity for l in lotes)
 
-        conn.close()
-        return ejecutar_accion(accion_original)
+        respuesta = (
+            f"Producto seleccionado:\n\n"
+            f"Producto: {elegido.name}\n"
+            f"Marca: {elegido.brand.name}\n"
+            f"Categoría: {elegido.category.name}\n"
+            f"Tipo/Variedad: {elegido.type_variety}\n"
+            f"Contenido: {elegido.content_value} {elegido.content_unit}\n\n"
+            f"Lotes disponibles:\n"
+        )
 
-
-    cursor.execute("SELECT * FROM productos WHERE LOWER(nombre) = LOWER(%s)", (producto,))
-    productos = cursor.fetchall()
-
-    if tipo == "consultar":
-        if len(productos) == 0:
-            conn.close()
-            return f"No tengo registros de '{producto}'."
-
-        if len(productos) == 1:
-            p = productos[0]
-            conn.close()
-            return (
-                f"Producto: {p['nombre']}\n"
-                f"- Cantidad: {p['cantidad']}\n"
-                f"- Marca: {p['marca']}\n"
-                f"- Tipo: {p['tipo']}\n"
-                f"- Ingreso: {p['fecha_ingreso']}\n"
-                f"- Caducidad: {p['fecha_caducidad']}"
-            )
-
-        opciones_pendientes[producto] = productos
-        total = sum(p["cantidad"] for p in productos)
-
-        respuesta = f"Lotes de {producto}:\n\n"
-
-        for i, p in enumerate(productos, start=1):
+        for i, l in enumerate(lotes, start=1):
             respuesta += (
-                f"{i})\n"
-                f"- Marca: {p['marca']}\n"
-                f"- Tipo: {p['tipo']}\n"
-                f"- Ingreso: {p['fecha_ingreso']}\n"
-                f"- Caducidad: {p['fecha_caducidad']}\n"
-                f"- Cantidad: {p['cantidad']}\n\n"
-            )
-
-        respuesta += f"Total disponible: {total} unidades."
-        conn.close()
-        return respuesta
-
-    if tipo == "consultar_marca":
-        marca = accion.get("marca", "")
-        cursor.execute(
-            "SELECT * FROM productos WHERE LOWER(nombre)=LOWER(%s) AND LOWER(marca)=LOWER(%s)",
-            (producto, marca)
-        )
-        productos = cursor.fetchall()
-        conn.close()
-
-        if not productos:
-            return f"No encontré {producto} de marca {marca}."
-
-        p = productos[0]
-        return (
-            f"{p['nombre']} (Marca: {p['marca']})\n"
-            f"- Cantidad: {p['cantidad']}\n"
-            f"- Tipo: {p['tipo']}\n"
-            f"- Ingreso: {p['fecha_ingreso']}\n"
-            f"- Caducidad: {p['fecha_caducidad']}"
-        )
-
-    if tipo == "consultar_tipo":
-        tipo_p = accion.get("tipo", "")
-        cursor.execute(
-            "SELECT * FROM productos WHERE LOWER(nombre)=LOWER(%s) AND LOWER(tipo)=LOWER(%s)",
-            (producto, tipo_p)
-        )
-        productos = cursor.fetchall()
-        conn.close()
-
-        if not productos:
-            return f"No encontré {producto} de tipo {tipo_p}."
-
-        total = sum(p["cantidad"] for p in productos)
-
-        respuesta = f"Lotes de {producto} tipo {tipo_p}:\n\n"
-
-        for i, p in enumerate(productos, start=1):
-            respuesta += (
-                f"{i})\n"
-                f"- Marca: {p['marca']}\n"
-                f"- Cantidad: {p['cantidad']}\n"
-                f"- Ingreso: {p['fecha_ingreso']}\n"
-                f"- Caducidad: {p['fecha_caducidad']}\n\n"
+                f"{i}) Lote #{l.id}\n"
+                f"- Cantidad: {l.quantity}\n"
+                f"- Ingreso: {l.arrival_date}\n"
+                f"- Caducidad: {l.expiration_date or 'Sin fecha'}\n\n"
             )
 
         respuesta += f"Total disponible: {total} unidades."
         return respuesta
 
 
-    if tipo == "consultar_caducidad":
-        dias = int(accion.get("dias", 0))
-        limite = datetime.today() + timedelta(days=dias)
-
-        cursor.execute("SELECT * FROM productos WHERE fecha_caducidad != 'Por definir'")
-        productos = cursor.fetchall()
-        conn.close()
-
-        proximos = []
-        for p in productos:
-            try:
-                fecha = datetime.strptime(p["fecha_caducidad"], "%Y-%m-%d")
-                if fecha <= limite:
-                    proximos.append(p)
-            except:
-                continue
-
-        if not proximos:
-            return f"Ningún producto vence en {dias} días."
-
-        respuesta = f"Productos que vencen en {dias} días:\n\n"
-
-        for p in proximos:
-            respuesta += (
-                f"- {p['nombre']} (Marca: {p['marca']})\n"
-                f"  Caduca: {p['fecha_caducidad']}\n"
-                f"  Cantidad: {p['cantidad']}\n\n"
-            )
-
-        return respuesta
-
-    if tipo == "consultar_ingreso":
-        fecha = normalizar_fecha(accion.get("fecha_ingreso", ""))
-        cursor.execute("SELECT * FROM productos WHERE fecha_ingreso = %s", (fecha,))
-        productos = cursor.fetchall()
-        conn.close()
+    if tipo == "eliminar":
+        productos = Product.query.filter(Product.name.ilike(nombre_producto)).all()
 
         if not productos:
-            return f"No se ingresaron productos en {fecha}."
+            return f"No existe el producto '{nombre_producto}'."
 
-        respuesta = f"Productos ingresados en {fecha}:\n\n"
+        if len(productos) > 1:
+            return "Hay varias variantes de este producto. Especifica marca o tipo."
 
-        for p in productos:
-            respuesta += (
-                f"- {p['nombre']}\n"
-                f"  Cantidad: {p['cantidad']}\n"
-                f"  Marca: {p['marca']}\n"
-                f"  Tipo: {p['tipo']}\n"
-                f"  Caducidad: {p['fecha_caducidad']}\n\n"
-            )
+        producto = productos[0]
+        lotes = InventoryBatch.query.filter_by(product_id=producto.id).order_by(InventoryBatch.arrival_date.asc()).all()
 
-        return respuesta
+        cantidad_a_eliminar = cantidad
 
+        for lote in lotes:
+            if cantidad_a_eliminar <= 0:
+                break
 
-    campos_validos = ["nombre", "cantidad", "tipo", "marca", "fecha_ingreso", "fecha_caducidad"]
+            if lote.quantity <= cantidad_a_eliminar:
+                cantidad_a_eliminar -= lote.quantity
+                db.session.delete(lote)
+            else:
+                lote.quantity -= cantidad_a_eliminar
+                cantidad_a_eliminar = 0
+
+        db.session.commit()
+
+        total = sum(l.quantity for l in producto.batches)
+
+        if total == 0:
+            db.session.delete(producto)
+            db.session.commit()
+            return f"Se eliminaron todas las unidades de '{nombre_producto}'. Producto eliminado."
+
+        return f"Se eliminaron unidades. Cantidad restante total: {total}."
+
 
     if tipo == "editar":
         campo = accion.get("campo")
-        valor = accion.get("valor", "Por definir")
+        valor = accion.get("valor")
 
-        if campo is None:
-            conn.close()
-            return "No especificaste qué campo deseas editar."
-
-        if campo not in campos_validos:
-            conn.close()
-            return f"El campo '{campo}' no es válido. Campos válidos: {', '.join(campos_validos)}"
+        productos = Product.query.filter(Product.name.ilike(nombre_producto)).all()
 
         if not productos:
-            conn.close()
-            return f"No existe el producto '{producto}'."
+            return f"No existe el producto '{nombre_producto}'."
 
         if len(productos) > 1:
-            conn.close()
-            return "Hay varios lotes de este producto. Especifica marca o tipo."
+            return "Hay varias variantes de este producto. Especifica marca o tipo."
 
-        producto_id = productos[0]["id"]
+        producto = productos[0]
 
-        if campo == "fecha_ingreso" or campo == "fecha_caducidad":
-            valor = normalizar_fecha(valor)
-            if valor == "Por definir":
-                valor = datetime.now().strftime("%Y-%m-%d")
+        if campo == "marca":
+            marca = obtener_o_crear_marca(valor)
+            producto.brand_id = marca.id
 
-        cursor.execute(f"UPDATE productos SET {campo} = %s WHERE id = %s", (valor, producto_id))
-        conn.commit()
-        conn.close()
-        return f"El campo '{campo}' de '{producto}' fue actualizado a '{valor}'."
+        elif campo == "categoria":
+            categoria = obtener_o_crear_categoria(valor)
+            producto.category_id = categoria.id
 
-    conn.close()
+        elif campo == "tipo":
+            producto.type_variety = valor
+
+        elif campo == "contenido_valor":
+            producto.content_value = float(valor)
+
+        elif campo == "contenido_unidad":
+            producto.content_unit = valor
+
+        elif campo == "stock_alert":
+            producto.stock_alert = int(valor)
+
+        else:
+            return f"El campo '{campo}' no es válido."
+
+        db.session.commit()
+
+        return f"El campo '{campo}' fue actualizado correctamente."
+
     return "No entendí tu solicitud."

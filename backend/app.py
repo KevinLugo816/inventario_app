@@ -1,51 +1,63 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from database import get_connection, crear_tabla
+from dotenv import load_dotenv
+from models import db, Category, Brand, Product, InventoryBatch
 from interpretar import interpretar_mensaje
 from ejecutar import ejecutar_accion
 import os
 import time
-import psycopg2.extras
+
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-crear_tabla()
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URL")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+db.init_app(app)
+
+with app.app_context():
+    db.create_all()
+
 
 @app.route("/api/inventario", methods=["GET"])
 def inventario():
-    conn = None
     try:
-        conn = get_connection()
-        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-        cursor.execute("""
-            SELECT 
-                id,
-                nombre,
-                cantidad,
-                marca,
-                tipo,
-                TO_CHAR(fecha_ingreso, 'YYYY-MM-DD') AS fecha_ingreso,
-                fecha_caducidad
-            FROM productos
-        """)
+        productos = Product.query.all()
 
-        productos = cursor.fetchall()
+        resultado = []
 
-        if not productos:
-            return jsonify({"productos": []})
+        for p in productos:
+            lotes = InventoryBatch.query.filter_by(product_id=p.id).all()
+            total = sum(l.quantity for l in lotes)
 
-        return jsonify({
-            "productos": [dict(p) for p in productos]
-        })
+            resultado.append({
+                "id": p.id,
+                "name": p.name,
+                "brand": p.brand.name if p.brand else None,
+                "category": p.category.name if p.category else None,
+                "type_variety": p.type_variety,
+                "content_value": p.content_value,
+                "content_unit": p.content_unit,
+                "stock_alert": p.stock_alert,
+                "total_quantity": total,
+                "batches": [
+                    {
+                        "id": l.id,
+                        "quantity": l.quantity,
+                        "arrival_date": l.arrival_date.strftime("%Y-%m-%d"),
+                        "expiration_date": l.expiration_date.strftime("%Y-%m-%d") if l.expiration_date else None
+                    }
+                    for l in lotes
+                ]
+            })
+
+        return jsonify({"productos": resultado})
 
     except Exception as e:
         print("Error en /api/inventario:", e)
         return jsonify({"error": "Error obteniendo inventario"}), 500
-
-    finally:
-        if conn:
-            conn.close()
 
 
 @app.route("/asistente_ia", methods=["POST"])
@@ -53,13 +65,14 @@ def asistente_ia():
     try:
         data = request.get_json()
         mensaje = data.get("mensaje", "")
+        contexto = data.get("contexto", "")
 
         if not mensaje:
             return jsonify({"respuesta": "No recibí ningún mensaje."})
 
         # Interpretar mensaje
         try:
-            accion = interpretar_mensaje(mensaje)
+            accion = interpretar_mensaje(mensaje, contexto=contexto)
         except Exception as e:
             print("Error interpretando mensaje:", e)
             return jsonify({"respuesta": "No pude interpretar tu mensaje."})
