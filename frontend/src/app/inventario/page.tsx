@@ -165,45 +165,43 @@ export default function Inventario() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="text-gray-400 border-b border-[#333] text-left">
+                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("category")}>
+                  Rubro {orden === "category" && (direccion === "asc" ? "▲" : "▼")}
+                </th>
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("name")}>
                   Producto {orden === "name" && (direccion === "asc" ? "▲" : "▼")}
-                </th>
-                <th className="p-3">Contenido</th>
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("brand")}>
-                  Marca {orden === "brand" && (direccion === "asc" ? "▲" : "▼")}
-                </th>
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("category")}>
-                  Categoría {orden === "category" && (direccion === "asc" ? "▲" : "▼")}
-                </th>
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("type_variety")}>
-                  Tipo {orden === "type_variety" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("total_quantity")}>
                   Cantidad {orden === "total_quantity" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
+                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("brand")}>
+                  Marca {orden === "brand" && (direccion === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("type_variety")}>
+                  Variedad {orden === "type_variety" && (direccion === "asc" ? "▲" : "▼")}
+                </th>
+                <th className="p-3">Contenido</th>
                 <th className="p-3">Ingreso</th>
-                <th className="p-3">Caducidad</th>
+                <th className="p-3">Vencimiento</th>
               </tr>
             </thead>
 
             <tbody>
               {productosOrdenados.map((p) => {
-                const loteMasAntiguo = p.batches[0] || null;
+                const lote = p.batches[0] || null;
 
                 return (
                   <tr
                     key={p.id}
                     className="border-b border-[#2a2a2a] hover:bg-[#2a2a2a] transition"
                   >
+                    <td className="p-3 text-gray-300">{p.category}</td>
+
                     <td className="p-3 font-medium text-gray-200">{p.name}</td>
 
-                    <td className="p-3 text-gray-300">
-                      {p.content_value} {p.content_unit}
-                    </td>
+                    <td className="p-3">{p.total_quantity}</td>
 
                     <td className="p-3 text-gray-300">{p.brand}</td>
-
-                    <td className="p-3 text-gray-300">{p.category}</td>
 
                     <td className="p-3">
                       <span className="px-3 py-1 bg-orange-600/20 text-orange-400 rounded-full text-sm">
@@ -211,14 +209,16 @@ export default function Inventario() {
                       </span>
                     </td>
 
-                    <td className="p-3">{p.total_quantity}</td>
-
                     <td className="p-3 text-gray-300">
-                      {formatearFecha(loteMasAntiguo?.arrival_date || null)}
+                      {p.content_value} {p.content_unit}
                     </td>
 
-                    <td className={`p-3 font-semibold ${estadoCaducidad(loteMasAntiguo?.expiration_date || null)}`}>
-                      {formatearFecha(loteMasAntiguo?.expiration_date || null)}
+                    <td className="p-3 text-gray-300">
+                      {formatearFecha(lote?.arrival_date || null)}
+                    </td>
+
+                    <td className={`p-3 font-semibold ${estadoCaducidad(lote?.expiration_date || null)}`}>
+                      {formatearFecha(lote?.expiration_date || null)}
                     </td>
                   </tr>
                 );
