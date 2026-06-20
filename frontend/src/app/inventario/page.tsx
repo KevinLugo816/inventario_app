@@ -52,7 +52,7 @@ const estadoCaducidad = (fecha: string | null) => {
 export default function Inventario() {
   const [productos, setProductos] = useState<Producto[]>([]);
   const [busqueda, setBusqueda] = useState("");
-  const [orden, setOrden] = useState<keyof Producto | null>(null);
+  const [orden, setOrden] = useState<string | null>(null);
   const [direccion, setDireccion] = useState<"asc" | "desc">("asc");
   const [loading, setLoading] = useState(true);
 
@@ -69,15 +69,27 @@ export default function Inventario() {
       });
   }, []);
 
+
   const productosFiltrados = useMemo(() => {
-    return productos.filter((p) =>
-      p.name.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.brand.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.type_variety.toLowerCase().includes(busqueda.toLowerCase())
-    );
+    return productos.filter((p) => {
+      const lote = p.batches[0] || null;
+
+      const texto = `
+        ${p.category}
+        ${p.name}
+        ${p.brand}
+        ${p.type_variety}
+        ${p.content_value} ${p.content_unit}
+        ${lote?.arrival_date ?? ""}
+        ${lote?.expiration_date ?? ""}
+      `.toLowerCase();
+
+      return texto.includes(busqueda.toLowerCase());
+    });
   }, [productos, busqueda]);
 
-  const ordenarPor = (columna: keyof Producto) => {
+
+  const ordenarPor = (columna: string) => {
     if (orden === columna) {
       setDireccion(direccion === "asc" ? "desc" : "asc");
     } else {
@@ -90,20 +102,32 @@ export default function Inventario() {
     if (!orden) return productosFiltrados;
 
     return [...productosFiltrados].sort((a, b) => {
-      const A = a[orden];
-      const B = b[orden];
 
       if (orden === "total_quantity") {
         return direccion === "asc"
-          ? (A as number) - (B as number)
-          : (B as number) - (A as number);
+          ? a.total_quantity - b.total_quantity
+          : b.total_quantity - a.total_quantity;
       }
 
-      return direccion === "asc"
-        ? String(A).localeCompare(String(B))
-        : String(B).localeCompare(String(A));
+      if (orden === "fecha_ingreso") {
+        const fechaA = new Date(a.batches[0]?.arrival_date || "9999-12-31").getTime();
+        const fechaB = new Date(b.batches[0]?.arrival_date || "9999-12-31").getTime();
+        return direccion === "asc" ? fechaA - fechaB : fechaB - fechaA;
+      }
+
+      if (orden === "fecha_caducidad") {
+        const fechaA = new Date(a.batches[0]?.expiration_date || "9999-12-31").getTime();
+        const fechaB = new Date(b.batches[0]?.expiration_date || "9999-12-31").getTime();
+        return direccion === "asc" ? fechaA - fechaB : fechaB - fechaA;
+      }
+
+      const A = String((a as any)[orden] ?? "").toLowerCase();
+      const B = String((b as any)[orden] ?? "").toLowerCase();
+
+      return direccion === "asc" ? A.localeCompare(B) : B.localeCompare(A);
     });
   }, [productosFiltrados, orden, direccion]);
+
 
   if (loading) {
     return (
@@ -115,6 +139,7 @@ export default function Inventario() {
     );
   }
 
+
   return (
     <div className="space-y-10">
 
@@ -124,7 +149,7 @@ export default function Inventario() {
 
       <input
         type="text"
-        placeholder="Buscar producto, marca o tipo..."
+        placeholder="Buscar por cualquier campo..."
         className="w-full p-4 rounded-xl bg-[#111] border border-[#2a2a2a] text-white focus:outline-none focus:ring-2 focus:ring-orange-500 transition"
         value={busqueda}
         onChange={(e) => setBusqueda(e.target.value)}
@@ -165,24 +190,35 @@ export default function Inventario() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="text-gray-400 border-b border-[#333] text-left">
+
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("category")}>
                   Rubro {orden === "category" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
+
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("name")}>
                   Producto {orden === "name" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
+
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("total_quantity")}>
                   Cantidad {orden === "total_quantity" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
+
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("brand")}>
                   Marca {orden === "brand" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("type_variety")}>
-                  Variedad {orden === "type_variety" && (direccion === "asc" ? "▲" : "▼")}
-                </th>
+
+                <th className="p-3">Variedad</th>
+
                 <th className="p-3">Contenido</th>
-                <th className="p-3">Ingreso</th>
-                <th className="p-3">Vencimiento</th>
+
+                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("fecha_ingreso")}>
+                  Ingreso {orden === "fecha_ingreso" && (direccion === "asc" ? "▲" : "▼")}
+                </th>
+
+                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("fecha_caducidad")}>
+                  Vencimiento {orden === "fecha_caducidad" && (direccion === "asc" ? "▲" : "▼")}
+                </th>
+
               </tr>
             </thead>
 
