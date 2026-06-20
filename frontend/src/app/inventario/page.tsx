@@ -2,44 +2,52 @@
 
 import { useEffect, useState, useMemo } from "react";
 
-type Producto = {
+type Lote = {
   id: number;
-  nombre: string;
-  cantidad: number;
-  marca: string;
-  tipo: string;
-  fecha_ingreso: string;
-  fecha_caducidad: string;
+  quantity: number;
+  arrival_date: string;
+  expiration_date: string;
 };
 
+type Producto = {
+  id: number;
+  name: string;
+  brand: string;
+  category: string;
+  type_variety: string;
+  content_value: number;
+  content_unit: string;
+  total_quantity: number;
+  batches: Lote[];
+};
 
-const formatearFecha = (fecha: string) => {
-  if (!fecha || fecha.toLowerCase() === "por definir") return "Por definir";
+const formatearFecha = (fecha: string | null) => {
+  if (!fecha) return "Por definir";
 
-  // Formato YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
-    const [year, month, day] = fecha.split("-");
-    return `${day}/${month}/${year}`;
+    const [y, m, d] = fecha.split("-");
+    return `${d}/${m}/${y}`;
   }
 
   return "Por definir";
 };
 
-const estadoCaducidad = (fecha: string) => {
-  if (!fecha || fecha.toLowerCase() === "por definir") return "text-gray-300";
+const estadoCaducidad = (fecha: string | null) => {
+  if (!fecha) return "text-gray-300";
 
   const hoy = new Date();
   const cad = new Date(fecha);
 
   if (isNaN(cad.getTime())) return "text-gray-300";
 
-  const diffTime = cad.getTime() - hoy.getTime();
-  const dias = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const diff = cad.getTime() - hoy.getTime();
+  const dias = Math.ceil(diff / (1000 * 60 * 60 * 24));
 
   if (dias < 0) return "text-red-400";
   if (dias <= 30) return "text-yellow-400";
   return "text-green-400";
 };
+
 
 export default function Inventario() {
   const [productos, setProductos] = useState<Producto[]>([]);
@@ -63,9 +71,9 @@ export default function Inventario() {
 
   const productosFiltrados = useMemo(() => {
     return productos.filter((p) =>
-      p.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.marca.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.tipo.toLowerCase().includes(busqueda.toLowerCase())
+      p.name.toLowerCase().includes(busqueda.toLowerCase()) ||
+      p.brand.toLowerCase().includes(busqueda.toLowerCase()) ||
+      p.type_variety.toLowerCase().includes(busqueda.toLowerCase())
     );
   }, [productos, busqueda]);
 
@@ -82,27 +90,18 @@ export default function Inventario() {
     if (!orden) return productosFiltrados;
 
     return [...productosFiltrados].sort((a, b) => {
-      const valorA = a[orden];
-      const valorB = b[orden];
+      const A = a[orden];
+      const B = b[orden];
 
-      if (orden === "fecha_ingreso" || orden === "fecha_caducidad") {
-        const fechaA =
-          valorA === "Por definir" ? Infinity : new Date(valorA).getTime();
-        const fechaB =
-          valorB === "Por definir" ? Infinity : new Date(valorB).getTime();
-
-        return direccion === "asc" ? fechaA - fechaB : fechaB - fechaA;
-      }
-
-      if (orden === "cantidad") {
+      if (orden === "total_quantity") {
         return direccion === "asc"
-          ? (valorA as number) - (valorB as number)
-          : (valorB as number) - (valorA as number);
+          ? (A as number) - (B as number)
+          : (B as number) - (A as number);
       }
 
       return direccion === "asc"
-        ? String(valorA).localeCompare(String(valorB))
-        : String(valorB).localeCompare(String(valorA));
+        ? String(A).localeCompare(String(B))
+        : String(B).localeCompare(String(A));
     });
   }, [productosFiltrados, orden, direccion]);
 
@@ -115,7 +114,6 @@ export default function Inventario() {
       </div>
     );
   }
-
 
   return (
     <div className="space-y-10">
@@ -144,14 +142,14 @@ export default function Inventario() {
         <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a]">
           <h3 className="text-gray-400 text-lg">Categorías</h3>
           <p className="text-5xl font-bold text-orange-500 mt-2">
-            {new Set(productos.map((p) => p.tipo)).size}
+            {new Set(productos.map((p) => p.category)).size}
           </p>
         </div>
 
         <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a]">
           <h3 className="text-gray-400 text-lg">Stock Total</h3>
           <p className="text-5xl font-bold text-orange-500 mt-2">
-            {productos.reduce((acc, p) => acc + p.cantidad, 0)}
+            {productos.reduce((acc, p) => acc + p.total_quantity, 0)}
           </p>
         </div>
       </div>
@@ -167,51 +165,64 @@ export default function Inventario() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="text-gray-400 border-b border-[#333] text-left">
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("nombre")}>
-                  Producto {orden === "nombre" && (direccion === "asc" ? "▲" : "▼")}
+                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("name")}>
+                  Producto {orden === "name" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("cantidad")}>
-                  Cantidad {orden === "cantidad" && (direccion === "asc" ? "▲" : "▼")}
+                <th className="p-3">Contenido</th>
+                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("brand")}>
+                  Marca {orden === "brand" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("marca")}>
-                  Marca {orden === "marca" && (direccion === "asc" ? "▲" : "▼")}
+                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("category")}>
+                  Categoría {orden === "category" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("tipo")}>
-                  Tipo {orden === "tipo" && (direccion === "asc" ? "▲" : "▼")}
+                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("type_variety")}>
+                  Tipo {orden === "type_variety" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("fecha_ingreso")}>
-                  Ingreso {orden === "fecha_ingreso" && (direccion === "asc" ? "▲" : "▼")}
+                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("total_quantity")}>
+                  Cantidad {orden === "total_quantity" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
-                <th className="p-3 cursor-pointer" onClick={() => ordenarPor("fecha_caducidad")}>
-                  Caducidad {orden === "fecha_caducidad" && (direccion === "asc" ? "▲" : "▼")}
-                </th>
+                <th className="p-3">Ingreso</th>
+                <th className="p-3">Caducidad</th>
               </tr>
             </thead>
 
             <tbody>
-              {productosOrdenados.map((p) => (
-                <tr
-                  key={p.id}
-                  className="border-b border-[#2a2a2a] hover:bg-[#2a2a2a] transition"
-                >
-                  <td className="p-3 font-medium text-gray-200">{p.nombre}</td>
-                  <td className="p-3">{p.cantidad}</td>
-                  <td className="p-3 text-gray-300">{p.marca}</td>
-                  <td className="p-3">
-                    <span className="px-3 py-1 bg-orange-600/20 text-orange-400 rounded-full text-sm">
-                      {p.tipo}
-                    </span>
-                  </td>
+              {productosOrdenados.map((p) => {
+                const loteMasAntiguo = p.batches[0] || null;
 
-                  <td className="p-3 text-gray-300">
-                    {formatearFecha(p.fecha_ingreso)}
-                  </td>
+                return (
+                  <tr
+                    key={p.id}
+                    className="border-b border-[#2a2a2a] hover:bg-[#2a2a2a] transition"
+                  >
+                    <td className="p-3 font-medium text-gray-200">{p.name}</td>
 
-                  <td className={`p-3 font-semibold ${estadoCaducidad(p.fecha_caducidad)}`}>
-                    {formatearFecha(p.fecha_caducidad)}
-                  </td>
-                </tr>
-              ))}
+                    <td className="p-3 text-gray-300">
+                      {p.content_value} {p.content_unit}
+                    </td>
+
+                    <td className="p-3 text-gray-300">{p.brand}</td>
+
+                    <td className="p-3 text-gray-300">{p.category}</td>
+
+                    <td className="p-3">
+                      <span className="px-3 py-1 bg-orange-600/20 text-orange-400 rounded-full text-sm">
+                        {p.type_variety}
+                      </span>
+                    </td>
+
+                    <td className="p-3">{p.total_quantity}</td>
+
+                    <td className="p-3 text-gray-300">
+                      {formatearFecha(loteMasAntiguo?.arrival_date || null)}
+                    </td>
+
+                    <td className={`p-3 font-semibold ${estadoCaducidad(loteMasAntiguo?.expiration_date || null)}`}>
+                      {formatearFecha(loteMasAntiguo?.expiration_date || null)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
 
           </table>

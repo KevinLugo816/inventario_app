@@ -15,10 +15,23 @@ import {
   YAxis,
 } from "recharts";
 
+type Lote = {
+  id: number;
+  quantity: number;
+  arrival_date: string;
+  expiration_date: string;
+};
+
 type Producto = {
-  cantidad: number;
-  tipo?: string;
-  fecha_caducidad?: string;
+  id: number;
+  name: string;
+  brand: string;
+  category: string;
+  type_variety: string;
+  content_value: number;
+  content_unit: string;
+  total_quantity: number;
+  batches: Lote[];
 };
 
 export default function Home() {
@@ -36,27 +49,35 @@ export default function Home() {
       .catch(() => setLoading(false));
   }, []);
 
-  const totalInventario = productos.reduce((acc, p) => acc + p.cantidad, 0);
+
+  const totalInventario = productos.reduce(
+    (acc, p) => acc + p.total_quantity,
+    0
+  );
+
   const productosRegistrados = productos.length;
+
   const consultasIA = 0;
 
   const categoriasMap: Record<string, number> = {};
   productos.forEach((p) => {
-    const tipo = p.tipo ?? "Sin categoría";
-    categoriasMap[tipo] = (categoriasMap[tipo] || 0) + p.cantidad;
+    const cat = p.category || "Sin categoría";
+    categoriasMap[cat] = (categoriasMap[cat] || 0) + p.total_quantity;
   });
 
-  const dataCategorias = Object.entries(categoriasMap).map(([tipo, cantidad]) => ({
-    tipo,
-    cantidad,
-  }));
+  const dataCategorias = Object.entries(categoriasMap).map(
+    ([categoria, cantidad]) => ({
+      categoria,
+      cantidad,
+    })
+  );
 
   const colores = ["#f97316", "#fb923c", "#fdba74", "#fed7aa", "#ffedd5"];
 
   const stockLevels = {
-    alto: productos.filter((p) => p.cantidad >= 20).length,
-    medio: productos.filter((p) => p.cantidad >= 10 && p.cantidad < 20).length,
-    bajo: productos.filter((p) => p.cantidad < 10).length,
+    alto: productos.filter((p) => p.total_quantity >= 20).length,
+    medio: productos.filter((p) => p.total_quantity >= 10 && p.total_quantity < 20).length,
+    bajo: productos.filter((p) => p.total_quantity < 10).length,
   };
 
   const dataStock = [
@@ -64,6 +85,7 @@ export default function Home() {
     { nivel: "Medio", cantidad: stockLevels.medio },
     { nivel: "Bajo", cantidad: stockLevels.bajo },
   ];
+
 
   if (loading) {
     return (
@@ -149,7 +171,7 @@ export default function Home() {
                   <Pie
                     data={dataCategorias}
                     dataKey="cantidad"
-                    nameKey="tipo"
+                    nameKey="categoria"
                     cx="50%"
                     cy="50%"
                     outerRadius={90}
@@ -179,7 +201,7 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Gráfico 2: Stock mejorado */}
+        {/* Gráfico 2 */}
         <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a] animate-[fadeIn_.6s_ease-out]">
           <h3 className="text-xl font-semibold mb-4 text-gray-300">
             Niveles de Stock
@@ -211,9 +233,9 @@ export default function Home() {
                   >
                     {dataStock.map((entry, index) => {
                       const colores: Record<"Alto" | "Medio" | "Bajo", string> = {
-                        Alto: "#22c55e",   // verde
-                        Medio: "#eab308",  // amarillo
-                        Bajo: "#ef4444",   // rojo
+                        Alto: "#22c55e",
+                        Medio: "#eab308",
+                        Bajo: "#ef4444",
                       };
                       const nivel = entry.nivel as keyof typeof colores;
                       return <Cell key={index} fill={colores[nivel]} />;
