@@ -79,7 +79,8 @@ export default function Inventario() {
         ${p.name}
         ${p.brand}
         ${p.type_variety}
-        ${p.content_value} ${p.content_unit}
+        ${p.content_unit}
+        ${p.content_value ? `${p.content_value} ${p.content_unit}` : ""}
         ${lote?.arrival_date ?? ""}
         ${lote?.expiration_date ?? ""}
       `.toLowerCase();
