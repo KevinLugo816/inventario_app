@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date
 from models import db, Category, Brand, Product, InventoryBatch
 
 opciones_pendientes = {}
@@ -12,7 +12,7 @@ def normalizar_cantidad(valor):
 
 
 def normalizar_fecha(valor):
-    if not valor or valor in ["-", "por definir", "Por definir", None]:
+    if not valor or valor.lower() in ["-", "por definir"]:
         return None
 
     try:
@@ -53,12 +53,12 @@ def obtener_o_crear_marca(nombre):
     return marca
 
 
-def obtener_o_crear_producto(nombre, marca, categoria, tipo, contenido_valor, contenido_unidad, alerta):
+def obtener_o_crear_producto(nombre, marca, categoria, tipo_variedad, contenido_valor, contenido_unidad, alerta):
     prod = Product.query.filter_by(
         name=nombre,
         brand_id=marca.id,
         category_id=categoria.id,
-        type_variety=tipo,
+        type_variety=tipo_variedad,
         content_value=contenido_valor,
         content_unit=contenido_unidad
     ).first()
@@ -68,7 +68,7 @@ def obtener_o_crear_producto(nombre, marca, categoria, tipo, contenido_valor, co
             name=nombre,
             brand_id=marca.id,
             category_id=categoria.id,
-            type_variety=tipo,
+            type_variety=tipo_variedad,
             content_value=contenido_valor,
             content_unit=contenido_unidad,
             stock_alert=alerta
@@ -86,19 +86,19 @@ def ejecutar_accion(accion):
     nombre_producto = accion.get("producto", "").strip().lower()
 
     # Datos comunes
-    marca_txt = accion.get("marca")
-    categoria_txt = accion.get("categoria")
-    tipo_variedad = accion.get("tipo")
-    contenido_valor = accion.get("contenido_valor")
-    contenido_unidad = accion.get("contenido_unidad")
+    marca_txt = accion.get("brand")
+    categoria_txt = accion.get("category")
+    tipo_variedad = accion.get("type_variety")
+    contenido_valor = accion.get("content_value")
+    contenido_unidad = accion.get("content_unit")
     alerta = accion.get("stock_alert")
 
     cantidad = normalizar_cantidad(accion.get("cantidad"))
-    fecha_ingreso = normalizar_fecha(accion.get("fecha_ingreso"))
-    fecha_caducidad = normalizar_fecha(accion.get("fecha_caducidad"))
+    fecha_ingreso = normalizar_fecha(accion.get("arrival_date"))
+    fecha_caducidad = normalizar_fecha(accion.get("expiration_date"))
 
     if not fecha_ingreso:
-        fecha_ingreso = datetime.now().strftime("%Y-%m-%d")
+        fecha_ingreso = date.today().strftime("%Y-%m-%d")
 
 
     if tipo == "agregar":
@@ -115,7 +115,6 @@ def ejecutar_accion(accion):
             alerta
         )
 
-        # Crear lote
         lote = InventoryBatch(
             product_id=producto.id,
             quantity=cantidad,
@@ -132,19 +131,19 @@ def ejecutar_accion(accion):
             f"Producto agregado correctamente.\n\n"
             f"Producto: {producto.name}\n"
             f"Marca: {marca.name}\n"
-            f"Categoría: {categoria.name}\n"
-            f"Tipo/Variedad: {producto.type_variety}\n"
+            f"Rubro: {categoria.name}\n"
+            f"Variedad: {producto.type_variety}\n"
             f"Contenido: {producto.content_value} {producto.content_unit}\n\n"
             f"Lote registrado:\n"
             f"- Cantidad: {cantidad}\n"
             f"- Ingreso: {fecha_ingreso}\n"
-            f"- Caducidad: {fecha_caducidad or 'Sin fecha'}\n\n"
+            f"- Vencimiento: {fecha_caducidad or 'Sin fecha'}\n\n"
             f"Cantidad total disponible ahora: {total} unidades."
         )
 
 
     if tipo == "consultar":
-        productos = Product.query.filter(Product.name.ilike(nombre_producto)).all()
+        productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
 
         if not productos:
             return f"No tengo registros del producto '{nombre_producto}'."
@@ -157,8 +156,8 @@ def ejecutar_accion(accion):
             respuesta = (
                 f"Producto: {p.name}\n"
                 f"Marca: {p.brand.name}\n"
-                f"Categoría: {p.category.name}\n"
-                f"Tipo/Variedad: {p.type_variety}\n"
+                f"Rubro: {p.category.name}\n"
+                f"Variedad: {p.type_variety}\n"
                 f"Contenido: {p.content_value} {p.content_unit}\n\n"
                 f"Lotes disponibles:\n"
             )
@@ -168,13 +167,12 @@ def ejecutar_accion(accion):
                     f"{i}) Lote #{l.id}\n"
                     f"- Cantidad: {l.quantity}\n"
                     f"- Ingreso: {l.arrival_date}\n"
-                    f"- Caducidad: {l.expiration_date or 'Sin fecha'}\n\n"
+                    f"- Vencimiento: {l.expiration_date or 'Sin fecha'}\n\n"
                 )
 
             respuesta += f"Total disponible: {total} unidades."
             return respuesta
 
-        # Si hay varios productos iguales (diferentes marcas o tipos)
         opciones_pendientes[nombre_producto] = productos
 
         respuesta = f"Se encontraron varias variantes de '{nombre_producto}':\n\n"
@@ -183,11 +181,11 @@ def ejecutar_accion(accion):
             respuesta += (
                 f"{i})\n"
                 f"- Marca: {p.brand.name}\n"
-                f"- Tipo/Variedad: {p.type_variety}\n"
+                f"- Variedad: {p.type_variety}\n"
                 f"- Contenido: {p.content_value} {p.content_unit}\n\n"
             )
 
-        respuesta += "Indica el número o una característica (por ejemplo: 'marca Mary')."
+        respuesta += "Indica el número o una característica (por ejemplo: 'marca')."
         return respuesta
 
 
@@ -199,7 +197,8 @@ def ejecutar_accion(accion):
 
         lista = opciones_pendientes[nombre_producto]
 
-        # Selección por número
+        elegido = None
+
         if seleccion.isdigit():
             n = int(seleccion)
             if 1 <= n <= len(lista):
@@ -207,13 +206,13 @@ def ejecutar_accion(accion):
             else:
                 return "Número inválido."
         else:
-            # Selección por marca
             for p in lista:
                 if p.brand.name.lower() in seleccion:
                     elegido = p
                     break
-            else:
-                return "No encontré coincidencias."
+
+        if not elegido:
+            return "No encontré coincidencias."
 
         del opciones_pendientes[nombre_producto]
 
@@ -224,8 +223,8 @@ def ejecutar_accion(accion):
             f"Producto seleccionado:\n\n"
             f"Producto: {elegido.name}\n"
             f"Marca: {elegido.brand.name}\n"
-            f"Categoría: {elegido.category.name}\n"
-            f"Tipo/Variedad: {elegido.type_variety}\n"
+            f"Rubro: {elegido.category.name}\n"
+            f"Variedad: {elegido.type_variety}\n"
             f"Contenido: {elegido.content_value} {elegido.content_unit}\n\n"
             f"Lotes disponibles:\n"
         )
@@ -235,7 +234,7 @@ def ejecutar_accion(accion):
                 f"{i}) Lote #{l.id}\n"
                 f"- Cantidad: {l.quantity}\n"
                 f"- Ingreso: {l.arrival_date}\n"
-                f"- Caducidad: {l.expiration_date or 'Sin fecha'}\n\n"
+                f"- Vencimiento: {l.expiration_date or 'Sin fecha'}\n\n"
             )
 
         respuesta += f"Total disponible: {total} unidades."
@@ -243,13 +242,13 @@ def ejecutar_accion(accion):
 
 
     if tipo == "eliminar":
-        productos = Product.query.filter(Product.name.ilike(nombre_producto)).all()
+        productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
 
         if not productos:
             return f"No existe el producto '{nombre_producto}'."
 
         if len(productos) > 1:
-            return "Hay varias variantes de este producto. Especifica marca o tipo."
+            return "Hay varias variantes de este producto. Especifica marca o variedad."
 
         producto = productos[0]
         lotes = InventoryBatch.query.filter_by(product_id=producto.id).order_by(InventoryBatch.arrival_date.asc()).all()
@@ -276,38 +275,38 @@ def ejecutar_accion(accion):
             db.session.commit()
             return f"Se eliminaron todas las unidades de '{nombre_producto}'. Producto eliminado."
 
-        return f"Se eliminaron unidades. Cantidad restante total: {total}."
+        return f"Se eliminaron las unidades. Cantidad restante total: {total}."
 
 
     if tipo == "editar":
         campo = accion.get("campo")
         valor = accion.get("valor")
 
-        productos = Product.query.filter(Product.name.ilike(nombre_producto)).all()
+        productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
 
         if not productos:
             return f"No existe el producto '{nombre_producto}'."
 
         if len(productos) > 1:
-            return "Hay varias variantes de este producto. Especifica marca o tipo."
+            return "Hay varias variantes de este producto. Especifica marca o variedad."
 
         producto = productos[0]
 
-        if campo == "marca":
+        if campo == "brand":
             marca = obtener_o_crear_marca(valor)
             producto.brand_id = marca.id
 
-        elif campo == "categoria":
+        elif campo == "category":
             categoria = obtener_o_crear_categoria(valor)
             producto.category_id = categoria.id
 
-        elif campo == "tipo":
+        elif campo == "type_variety":
             producto.type_variety = valor
 
-        elif campo == "contenido_valor":
+        elif campo == "content_value":
             producto.content_value = float(valor)
 
-        elif campo == "contenido_unidad":
+        elif campo == "content_unit":
             producto.content_unit = valor
 
         elif campo == "stock_alert":

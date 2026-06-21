@@ -1,5 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import date
 
 db = SQLAlchemy()
 
@@ -63,5 +63,5 @@ class InventoryBatch(db.Model):
 
     quantity = db.Column(db.Integer, nullable=False)
 
-    arrival_date = db.Column(db.Date, nullable=False, default=datetime.utcnow)
+    arrival_date = db.Column(db.Date, nullable=False, default=date.today)
     expiration_date = db.Column(db.Date, nullable=True)

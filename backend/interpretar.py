@@ -26,12 +26,11 @@ Responde SOLO con JSON válido. NO escribas nada fuera del JSON.
 REGLAS GENERALES:
 - SOLO JSON puro.
 - Si falta un campo, usa "Por definir".
-- Si falta fecha_ingreso, usa la fecha actual en DD-MM-YYYY.
+- Si falta arrival_date, usa la fecha actual en DD-MM-YYYY.
 - Si el usuario dice "por definir", respétalo.
 - Convierte plurales a singular (aceites → aceite).
 - Si el usuario menciona dos acciones, elige SOLO la más importante.
-- Prioridad de acciones: agregar > editar > eliminar > consultar.
-- Si el usuario usa lenguaje ambiguo, interpreta la intención más lógica.
+- Prioridad: agregar > editar > eliminar > consultar.
 - Si el usuario consulta por marca, tipo, categoría o contenido, SIEMPRE incluye "producto".
 - Si el usuario consulta cantidades, SIEMPRE incluye "producto".
 - Si el usuario está eligiendo entre variantes, acción = seleccionar.
@@ -42,37 +41,31 @@ ACCIONES DISPONIBLES:
 - consultar
 - editar
 - seleccionar
-- consultar_marca
-- consultar_tipo
-- consultar_caducidad
-- consultar_ingreso
 
 CAMPOS DISPONIBLES:
 - producto
-- marca
-- categoria
-- tipo
-- contenido_valor
-- contenido_unidad
+- brand
+- category
+- type_variety
+- content_value
+- content_unit
 - cantidad
-- fecha_ingreso
-- fecha_caducidad
+- arrival_date
+- expiration_date
 - campo
 - valor
-- dias
 - opcion
-- accion_original
 
 FORMATO DE PRODUCTO PROFESIONAL:
 - producto: nombre del producto en singular
-- marca: nombre de la marca
-- categoria: rubro o categoría (ej: alimentos, limpieza)
-- tipo: variedad o tipo (ej: vegetal, premium)
-- contenido_valor: número (ej: 1, 500)
-- contenido_unidad: unidad (ej: L, ml, g, kg)
+- brand: marca
+- category: rubro/categoría
+- type_variety: variedad o tipo
+- content_value: número (1, 500)
+- content_unit: unidad (L, ml, g, kg)
 - cantidad: unidades del lote
-- fecha_ingreso: DD-MM-YYYY
-- fecha_caducidad: DD-MM-YYYY o "Por definir"
+- arrival_date: DD-MM-YYYY
+- expiration_date: DD-MM-YYYY o "Por definir"
 
 INTERPRETA ESTE MENSAJE:
 {mensaje}
@@ -102,57 +95,48 @@ CONTEXTO PREVIO:
         if "producto" in accion_json:
             accion_json["producto"] = singularizar(accion_json["producto"])
 
-        acciones_validas = [
-            "agregar", "eliminar", "consultar", "editar",
-            "consultar_tipo", "consultar_marca",
-            "consultar_caducidad", "consultar_ingreso",
-            "seleccionar"
-        ]
-
+        acciones_validas = ["agregar", "eliminar", "consultar", "editar", "seleccionar"]
         if accion_json.get("accion") not in acciones_validas:
             accion_json["accion"] = "error"
 
-        fecha = accion_json.get("fecha_ingreso", "").strip()
+        fecha = accion_json.get("arrival_date", "").strip()
 
         if fecha.lower() in ["", "por definir", "-", "none", "null"]:
-            accion_json["fecha_ingreso"] = hoy
+            accion_json["arrival_date"] = hoy
         else:
             try:
                 if "-" in fecha and len(fecha.split("-")[0]) == 4:
                     y, m, d = fecha.split("-")
-                    accion_json["fecha_ingreso"] = f"{d}-{m}-{y}"
+                    accion_json["arrival_date"] = f"{d}-{m}-{y}"
             except:
-                accion_json["fecha_ingreso"] = hoy
+                accion_json["arrival_date"] = hoy
 
         if accion_json.get("accion") == "editar":
             texto = mensaje.lower()
-
             campo = accion_json.get("campo")
+
             if not campo:
                 if "marca" in texto:
-                    campo = "marca"
+                    campo = "brand"
                 elif "categoria" in texto or "rubro" in texto:
-                    campo = "categoria"
-                elif "tipo" in texto:
-                    campo = "tipo"
+                    campo = "category"
+                elif "tipo" in texto or "variedad" in texto:
+                    campo = "type_variety"
                 elif "contenido" in texto:
-                    if "ml" in texto or "l" in texto or "kg" in texto or "g" in texto:
-                        campo = "contenido_unidad"
+                    if any(u in texto for u in ["ml", "l", "kg", "g"]):
+                        campo = "content_unit"
                     else:
-                        campo = "contenido_valor"
+                        campo = "content_value"
                 elif "alerta" in texto or "mínimo" in texto:
                     campo = "stock_alert"
-                elif "cantidad" in texto:
-                    campo = "cantidad"
-                elif "nombre" in texto or "producto" in texto:
-                    campo = "nombre"
                 elif "ingreso" in texto:
-                    campo = "fecha_ingreso"
+                    campo = "arrival_date"
                 elif "caduc" in texto or "vence" in texto:
-                    campo = "fecha_caducidad"
+                    campo = "expiration_date"
 
                 accion_json["campo"] = campo if campo else "Por definir"
 
+            # Si falta valor, usar el que vino en el JSON
             if accion_json.get("valor") in [None, "", "Por definir"]:
                 if accion_json["campo"] in accion_json:
                     accion_json["valor"] = accion_json[accion_json["campo"]]

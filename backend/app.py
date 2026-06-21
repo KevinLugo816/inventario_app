@@ -25,7 +25,6 @@ with app.app_context():
 def inventario():
     try:
         productos = Product.query.all()
-
         resultado = []
 
         for p in productos:
@@ -70,7 +69,6 @@ def asistente_ia():
         if not mensaje:
             return jsonify({"respuesta": "No recibí ningún mensaje."})
 
-        # Interpretar mensaje
         try:
             accion = interpretar_mensaje(mensaje, contexto=contexto)
         except Exception as e:
@@ -83,7 +81,6 @@ def asistente_ia():
         if accion.get("accion") == "error":
             return jsonify({"respuesta": "No entendí tu solicitud."})
 
-        # Ejecutar acción
         try:
             resultado = ejecutar_accion(accion)
         except Exception as e:
