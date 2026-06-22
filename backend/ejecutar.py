@@ -3,7 +3,6 @@ from models import db, Category, Brand, Product, InventoryBatch
 
 opciones_pendientes = {}
 
-
 def normalizar_cantidad(valor):
     try:
         return int(valor)
@@ -12,7 +11,7 @@ def normalizar_cantidad(valor):
 
 
 def normalizar_fecha(valor):
-    if not valor or valor.lower() in ["-", "por definir"]:
+    if not valor or str(valor).lower() in ["-", "por definir", "none", "null"]:
         return None
 
     try:
@@ -83,9 +82,8 @@ def ejecutar_accion(accion):
     global opciones_pendientes
 
     tipo = accion.get("accion")
-    nombre_producto = accion.get("producto", "").strip().lower()
+    nombre_producto = (accion.get("producto") or "").strip().lower()
 
-    # Datos comunes
     marca_txt = accion.get("brand")
     categoria_txt = accion.get("category")
     tipo_variedad = accion.get("type_variety")
@@ -190,13 +188,14 @@ def ejecutar_accion(accion):
 
 
     if tipo == "seleccionar":
-        seleccion = accion.get("opcion", "").lower()
+        seleccion = (accion.get("opcion") or "").lower()
 
-        if nombre_producto not in opciones_pendientes:
-            return "No hay selección pendiente para ese producto."
+        clave = nombre_producto if nombre_producto else next(iter(opciones_pendientes.keys()), None)
 
-        lista = opciones_pendientes[nombre_producto]
+        if not clave or clave not in opciones_pendientes:
+            return "No hay selección pendiente."
 
+        lista = opciones_pendientes[clave]
         elegido = None
 
         if seleccion.isdigit():
@@ -205,16 +204,17 @@ def ejecutar_accion(accion):
                 elegido = lista[n - 1]
             else:
                 return "Número inválido."
+
         else:
             for p in lista:
-                if p.brand.name.lower() in seleccion:
+                if p.brand.name.lower() in seleccion or p.type_variety.lower() in seleccion:
                     elegido = p
                     break
 
         if not elegido:
             return "No encontré coincidencias."
 
-        del opciones_pendientes[nombre_producto]
+        del opciones_pendientes[clave]
 
         lotes = InventoryBatch.query.filter_by(product_id=elegido.id).all()
         total = sum(l.quantity for l in lotes)
@@ -248,7 +248,7 @@ def ejecutar_accion(accion):
             return f"No existe el producto '{nombre_producto}'."
 
         if len(productos) > 1:
-            return "Hay varias variantes de este producto. Especifica marca o variedad."
+            return "Hay varias variantes. Especifica marca o variedad."
 
         producto = productos[0]
         lotes = InventoryBatch.query.filter_by(product_id=producto.id).order_by(InventoryBatch.arrival_date.asc()).all()
@@ -275,7 +275,7 @@ def ejecutar_accion(accion):
             db.session.commit()
             return f"Se eliminaron todas las unidades de '{nombre_producto}'. Producto eliminado."
 
-        return f"Se eliminaron las unidades. Cantidad restante total: {total}."
+        return f"Se eliminaron unidades. Cantidad restante total: {total}."
 
 
     if tipo == "editar":
@@ -288,7 +288,7 @@ def ejecutar_accion(accion):
             return f"No existe el producto '{nombre_producto}'."
 
         if len(productos) > 1:
-            return "Hay varias variantes de este producto. Especifica marca o variedad."
+            return "Hay varias variantes. Especifica marca o variedad."
 
         producto = productos[0]
 

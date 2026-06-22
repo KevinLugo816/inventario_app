@@ -1,8 +1,10 @@
 import json
 import os
+import re
 from groq import Groq
 from datetime import datetime
 from dotenv import load_dotenv
+from word2number import w2n
 
 load_dotenv()
 
@@ -10,6 +12,36 @@ client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 def interpretar_mensaje(mensaje: str, contexto: str = ""):
     hoy = datetime.now().strftime("%d-%m-%Y")
+    texto = mensaje.lower()
+
+    try:
+        palabras = mensaje.split()
+        for palabra in palabras:
+            if palabra.isalpha():
+                try:
+                    numero = w2n.word_to_num(palabra)
+                    mensaje = mensaje.replace(palabra, str(numero))
+                except:
+                    pass
+    except:
+        pass
+
+    fecha_regex = r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b"
+    coincidencias = re.findall(fecha_regex, mensaje)
+    for d, m, y in coincidencias:
+        try:
+            datetime(int(y), int(m), int(d))
+        except:
+            mensaje = mensaje.replace(f"{d}-{m}-{y}", "Por definir")
+
+    if any(x in texto for x in ["ponle", "agrega", "añade"]) and "más" in texto:
+        contexto += "\n[INTENCION_INFERIDA]: editar_cantidad"
+
+    if "cámbial" in texto or "actualiza" in texto:
+        contexto += "\n[INTENCION_INFERIDA]: editar"
+
+    if texto.strip() in ["sí", "ok", "dale", "ese", "esa", "el primero", "el segundo"]:
+        contexto += "\n[INTENCION_INFERIDA]: seleccionar"
 
     def singularizar(p):
         p = p.lower().strip()
@@ -20,20 +52,42 @@ def interpretar_mensaje(mensaje: str, contexto: str = ""):
         return p
 
     prompt = f"""
-Eres Bell, un asistente experto en inventario profesional.
-Responde SOLO con JSON válido. NO escribas nada fuera del JSON.
+Eres Bell, un asistente experto en inventario profesional.  
+Tu única salida debe ser SIEMPRE un JSON válido.  
+Nunca escribas texto fuera del JSON.
+
+ANTES DE RESPONDER:
+- Analiza la intención del usuario.
+- Analiza el contexto previo.
+- Analiza si el usuario está continuando una selección.
+- Analiza si el usuario está corrigiendo un mensaje anterior.
+- Analiza si el usuario está dando una instrucción implícita.
+- No muestres tu razonamiento interno.
+
+OBJETIVO:
+Interpretar el mensaje del usuario y devolver un JSON con la acción correcta y los campos necesarios.
 
 REGLAS GENERALES:
 - SOLO JSON puro.
 - Si falta un campo, usa "Por definir".
-- Si falta arrival_date, usa la fecha actual en DD-MM-YYYY.
-- Si el usuario dice "por definir", respétalo.
+- arrival_date por defecto = fecha actual en DD-MM-YYYY.
 - Convierte plurales a singular (aceites → aceite).
+- Si el usuario dice "por definir", respétalo.
 - Si el usuario menciona dos acciones, elige SOLO la más importante.
 - Prioridad: agregar > editar > eliminar > consultar.
 - Si el usuario consulta por marca, tipo, categoría o contenido, SIEMPRE incluye "producto".
 - Si el usuario consulta cantidades, SIEMPRE incluye "producto".
 - Si el usuario está eligiendo entre variantes, acción = seleccionar.
+- Si el mensaje es ambiguo pero existe contexto suficiente, NO pidas aclaración: usa el contexto.
+- Si detectas inconsistencias (fechas inválidas, cantidades negativas, valores faltantes), corrige y marca "opcion": "correccion".
+- Si el usuario responde con algo corto como "marca X", "el más nuevo", "el que vence primero", "2", "ese", "sí", "ok", "dale", entonces acción = seleccionar.
+
+REGLAS DE INTENCIÓN IMPLÍCITA:
+- "agrega X más", "ponle X más", "añade X más" → acción = editar, campo = cantidad.
+- "cámbiale", "actualiza", "modifica" → acción = editar.
+- "quita", "remueve", "descarta" → acción = eliminar.
+- "cuánto hay", "cuánta cantidad", "cuántos quedan" → acción = consultar.
+- "qué marca tiene", "qué tipo es", "qué contenido tiene" → acción = consultar.
 
 ACCIONES DISPONIBLES:
 - agregar
@@ -67,11 +121,16 @@ FORMATO DE PRODUCTO PROFESIONAL:
 - arrival_date: DD-MM-YYYY
 - expiration_date: DD-MM-YYYY o "Por definir"
 
+USO DEL CONTEXTO:
+- Si el usuario no menciona producto explícito pero existe un producto en CONTEXTO PREVIO, úsalo.
+- Si el usuario está respondiendo a una selección pendiente, acción = seleccionar.
+
 INTERPRETA ESTE MENSAJE:
 {mensaje}
 
 CONTEXTO PREVIO:
 {contexto}
+
 """
 
     try:
@@ -112,7 +171,6 @@ CONTEXTO PREVIO:
                 accion_json["arrival_date"] = hoy
 
         if accion_json.get("accion") == "editar":
-            texto = mensaje.lower()
             campo = accion_json.get("campo")
 
             if not campo:
@@ -127,8 +185,6 @@ CONTEXTO PREVIO:
                         campo = "content_unit"
                     else:
                         campo = "content_value"
-                elif "alerta" in texto or "mínimo" in texto:
-                    campo = "stock_alert"
                 elif "ingreso" in texto:
                     campo = "arrival_date"
                 elif "caduc" in texto or "vence" in texto:
@@ -136,10 +192,13 @@ CONTEXTO PREVIO:
 
                 accion_json["campo"] = campo if campo else "Por definir"
 
-            # Si falta valor, usar el que vino en el JSON
             if accion_json.get("valor") in [None, "", "Por definir"]:
                 if accion_json["campo"] in accion_json:
                     accion_json["valor"] = accion_json[accion_json["campo"]]
+
+        if accion_json.get("accion") == "eliminar":
+            if accion_json.get("cantidad", 0) < 0:
+                accion_json["cantidad"] = abs(accion_json["cantidad"])
 
         return accion_json
 
