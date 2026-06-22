@@ -3,6 +3,7 @@ from models import db, Category, Brand, Product, InventoryBatch
 
 opciones_pendientes = {}
 
+
 def normalizar_cantidad(valor):
     try:
         return int(valor)
@@ -29,7 +30,7 @@ def normalizar_fecha(valor):
 
 
 def obtener_o_crear_categoria(nombre):
-    if not nombre:
+    if not nombre or nombre == "Por definir":
         nombre = "General"
 
     cat = Category.query.filter_by(name=nombre).first()
@@ -41,7 +42,7 @@ def obtener_o_crear_categoria(nombre):
 
 
 def obtener_o_crear_marca(nombre):
-    if not nombre:
+    if not nombre or nombre == "Por definir":
         nombre = "Sin marca"
 
     marca = Brand.query.filter_by(name=nombre).first()
@@ -53,6 +54,12 @@ def obtener_o_crear_marca(nombre):
 
 
 def obtener_o_crear_producto(nombre, marca, categoria, tipo_variedad, contenido_valor, contenido_unidad, alerta):
+    if contenido_valor in ["Por definir", None, ""]:
+        contenido_valor = None
+
+    if contenido_unidad in ["Por definir", None, ""]:
+        contenido_unidad = None
+
     prod = Product.query.filter_by(
         name=nombre,
         brand_id=marca.id,
@@ -91,7 +98,7 @@ def ejecutar_accion(accion):
     contenido_unidad = accion.get("content_unit")
     alerta = accion.get("stock_alert")
 
-    cantidad = normalizar_cantidad(accion.get("cantidad"))
+    cantidad = normalizar_cantidad(accion.get("cantidad") or 0)
     fecha_ingreso = normalizar_fecha(accion.get("arrival_date"))
     fecha_caducidad = normalizar_fecha(accion.get("expiration_date"))
 
@@ -282,6 +289,9 @@ def ejecutar_accion(accion):
         campo = accion.get("campo")
         valor = accion.get("valor")
 
+        if valor in ["Por definir", None, ""]:
+            return "Necesito un valor para editar ese campo."
+
         productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
 
         if not productos:
@@ -304,10 +314,22 @@ def ejecutar_accion(accion):
             producto.type_variety = valor
 
         elif campo == "content_value":
+            if "content_unit" in accion:
+                producto.content_unit = accion["content_unit"]
             producto.content_value = float(valor)
 
         elif campo == "content_unit":
             producto.content_unit = valor
+
+        elif campo == "expiration_date":
+            lotes = InventoryBatch.query.filter_by(product_id=producto.id).all()
+            for lote in lotes:
+                lote.expiration_date = normalizar_fecha(valor)
+
+        elif campo == "arrival_date":
+            lotes = InventoryBatch.query.filter_by(product_id=producto.id).all()
+            for lote in lotes:
+                lote.arrival_date = normalizar_fecha(valor)
 
         elif campo == "stock_alert":
             producto.stock_alert = int(valor)

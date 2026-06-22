@@ -61,22 +61,20 @@ REGLAS GENERALES:
 - SOLO JSON puro.
 - Si falta un campo, usa "Por definir".
 - arrival_date por defecto = fecha actual en DD-MM-YYYY.
-- Convierte plurales a singular (aceites → aceite).
+- Convierte plurales a singular.
 - Si el usuario dice "por definir", respétalo.
-- Si el usuario menciona dos acciones, elige SOLO la más importante.
 - Prioridad: agregar > editar > eliminar > consultar.
-- Si el usuario consulta por marca, tipo, categoría o contenido, SIEMPRE incluye "producto".
-- Si el usuario consulta cantidades, SIEMPRE incluye "producto".
+- Si el usuario consulta por marca, tipo, categoría o contenido, incluye "producto".
+- Si el usuario consulta cantidades, incluye "producto".
 - Si el usuario está eligiendo entre variantes, acción = seleccionar.
-- Si el mensaje es ambiguo pero existe contexto suficiente, NO pidas aclaración: usa el contexto.
-- Si detectas inconsistencias (fechas inválidas, cantidades negativas, valores faltantes), corrige y marca "opcion": "correccion".
-- Si el usuario responde con algo corto como "marca X", "el más nuevo", "el que vence primero", "2", "ese", "sí", "ok", "dale", entonces acción = seleccionar.
+- Si el mensaje es ambiguo pero existe contexto suficiente, usa el contexto.
+- Si detectas inconsistencias, corrige y marca "opcion": "correccion".
 
 REGLA CRÍTICA PARA AGREGAR:
 Si el mensaje empieza con "agrega", "añade", "añadir", "pon", "ponle", "registra", "ingresa",
 la acción SIEMPRE debe ser "agregar".
 
-Si CONTEXTO PREVIO contiene "[FORZAR_ACCION]: agregar", entonces la acción debe ser "agregar" sin excepción.
+Si CONTEXTO PREVIO contiene "[FORZAR_ACCION]: agregar", entonces la acción debe ser "agregar".
 
 Para la acción "agregar", SIEMPRE debes devolver al menos:
 
@@ -93,7 +91,7 @@ Para la acción "agregar", SIEMPRE debes devolver al menos:
   "expiration_date": "Por definir"
 }}
 
-Si el usuario no menciona alguno de estos campos, rellénalo con "Por definir".
+Si el usuario no menciona un campo, rellénalo con "Por definir" o 0.
 
 ACCIONES DISPONIBLES:
 - agregar
@@ -115,21 +113,6 @@ CAMPOS DISPONIBLES:
 - campo
 - valor
 - opcion
-
-FORMATO DE PRODUCTO PROFESIONAL:
-- producto: nombre del producto en singular
-- brand: marca
-- category: rubro/categoría
-- type_variety: variedad o tipo
-- content_value: número (1, 500)
-- content_unit: unidad (L, ml, g, kg)
-- cantidad: unidades del lote
-- arrival_date: DD-MM-YYYY
-- expiration_date: DD-MM-YYYY o "Por definir"
-
-USO DEL CONTEXTO:
-- Si el usuario no menciona producto explícito pero existe un producto en CONTEXTO PREVIO, úsalo.
-- Si el usuario está respondiendo a una selección pendiente, acción = seleccionar.
 
 INTERPRETA ESTE MENSAJE:
 {mensaje}
@@ -186,8 +169,11 @@ CONTEXTO PREVIO:
                 elif "tipo" in texto or "variedad" in texto:
                     campo = "type_variety"
                 elif "contenido" in texto:
-                    if any(u in texto for u in ["ml", "l", "kg", "g"]):
-                        campo = "content_unit"
+                    match = re.search(r"(\d+)\s*(ml|l|kg|g)", texto)
+                    if match:
+                        accion_json["campo"] = "content_value"
+                        accion_json["valor"] = match.group(1)
+                        accion_json["content_unit"] = match.group(2)
                     else:
                         campo = "content_value"
                 elif "ingreso" in texto:
@@ -204,6 +190,20 @@ CONTEXTO PREVIO:
         if accion_json.get("accion") == "eliminar":
             if accion_json.get("cantidad", 0) < 0:
                 accion_json["cantidad"] = abs(accion_json["cantidad"])
+
+        if accion_json.get("accion") == "agregar":
+            obligatorios = [
+                "producto", "cantidad", "brand", "category",
+                "type_variety", "content_value", "content_unit",
+                "arrival_date", "expiration_date"
+            ]
+            for c in obligatorios:
+                if c not in accion_json or accion_json[c] in ["", None]:
+                    accion_json[c] = "Por definir" if c != "cantidad" else 0
+
+        if accion_json.get("accion") == "seleccionar":
+            if not accion_json.get("producto"):
+                accion_json["producto"] = "por_definir"
 
         return accion_json
 
