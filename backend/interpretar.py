@@ -11,7 +11,7 @@ client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
 def interpretar_mensaje(mensaje: str, contexto: str = ""):
     hoy = datetime.now().strftime("%d-%m-%Y")
-    texto = mensaje.lower()
+    texto = mensaje.lower().strip()
 
     fecha_regex = r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b"
     coincidencias = re.findall(fecha_regex, mensaje)
@@ -27,8 +27,11 @@ def interpretar_mensaje(mensaje: str, contexto: str = ""):
     if "cámbial" in texto or "actualiza" in texto:
         contexto += "\n[INTENCION_INFERIDA]: editar"
 
-    if texto.strip() in ["sí", "ok", "dale", "ese", "esa", "el primero", "el segundo"]:
+    if texto in ["sí", "ok", "dale", "ese", "esa", "el primero", "el segundo"]:
         contexto += "\n[INTENCION_INFERIDA]: seleccionar"
+
+    if texto.startswith(("agrega", "añade", "añadir", "pon ", "ponle", "registra", "ingresa")):
+        contexto += "\n[FORZAR_ACCION]: agregar"
 
     def singularizar(p):
         p = p.lower().strip()
@@ -69,12 +72,28 @@ REGLAS GENERALES:
 - Si detectas inconsistencias (fechas inválidas, cantidades negativas, valores faltantes), corrige y marca "opcion": "correccion".
 - Si el usuario responde con algo corto como "marca X", "el más nuevo", "el que vence primero", "2", "ese", "sí", "ok", "dale", entonces acción = seleccionar.
 
-REGLAS DE INTENCIÓN IMPLÍCITA:
-- "agrega X más", "ponle X más", "añade X más" → acción = editar, campo = cantidad.
-- "cámbiale", "actualiza", "modifica" → acción = editar.
-- "quita", "remueve", "descarta" → acción = eliminar.
-- "cuánto hay", "cuánta cantidad", "cuántos quedan" → acción = consultar.
-- "qué marca tiene", "qué tipo es", "qué contenido tiene" → acción = consultar.
+REGLA CRÍTICA PARA AGREGAR:
+Si el mensaje empieza con "agrega", "añade", "añadir", "pon", "ponle", "registra", "ingresa",
+la acción SIEMPRE debe ser "agregar".
+
+Si CONTEXTO PREVIO contiene "[FORZAR_ACCION]: agregar", entonces la acción debe ser "agregar" sin excepción.
+
+Para la acción "agregar", SIEMPRE debes devolver al menos:
+
+{{
+  "accion": "agregar",
+  "producto": "...",
+  "cantidad": 0,
+  "brand": "Por definir",
+  "category": "Por definir",
+  "type_variety": "Por definir",
+  "content_value": "Por definir",
+  "content_unit": "Por definir",
+  "arrival_date": "{hoy}",
+  "expiration_date": "Por definir"
+}}
+
+Si el usuario no menciona alguno de estos campos, rellénalo con "Por definir".
 
 ACCIONES DISPONIBLES:
 - agregar
@@ -117,7 +136,6 @@ INTERPRETA ESTE MENSAJE:
 
 CONTEXTO PREVIO:
 {contexto}
-
 """
 
     try:
