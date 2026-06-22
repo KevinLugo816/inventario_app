@@ -4,7 +4,6 @@ import re
 from groq import Groq
 from datetime import datetime
 from dotenv import load_dotenv
-from word2number import w2n
 
 load_dotenv()
 
@@ -13,18 +12,6 @@ client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 def interpretar_mensaje(mensaje: str, contexto: str = ""):
     hoy = datetime.now().strftime("%d-%m-%Y")
     texto = mensaje.lower()
-
-    try:
-        palabras = mensaje.split()
-        for palabra in palabras:
-            if palabra.isalpha():
-                try:
-                    numero = w2n.word_to_num(palabra)
-                    mensaje = mensaje.replace(palabra, str(numero))
-                except:
-                    pass
-    except:
-        pass
 
     fecha_regex = r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b"
     coincidencias = re.findall(fecha_regex, mensaje)
