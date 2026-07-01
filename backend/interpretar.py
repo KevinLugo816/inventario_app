@@ -169,7 +169,7 @@ CONTEXTO PREVIO:
                 elif "tipo" in texto or "variedad" in texto:
                     campo = "type_variety"
                 elif "contenido" in texto:
-                    match = re.search(r"(\d+)\s*(ml|l|kg|g)", texto)
+                    match = re.search(r"(\d+)\s*(ml|l|kg|g)|(\d+)(ml|l|kg|g)", texto)
                     if match:
                         accion_json["campo"] = "content_value"
                         accion_json["valor"] = match.group(1)

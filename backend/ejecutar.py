@@ -3,7 +3,6 @@ from models import db, Category, Brand, Product, InventoryBatch
 
 opciones_pendientes = {}
 
-
 def normalizar_cantidad(valor):
     try:
         return int(valor)
@@ -148,7 +147,11 @@ def ejecutar_accion(accion):
 
 
     if tipo == "consultar":
-        productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
+
+        productos = Product.query.filter(Product.name == nombre_producto).all()
+
+        if not productos:
+            productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
 
         if not productos:
             return f"No tengo registros del producto '{nombre_producto}'."
@@ -197,7 +200,16 @@ def ejecutar_accion(accion):
     if tipo == "seleccionar":
         seleccion = (accion.get("opcion") or "").lower()
 
-        clave = nombre_producto if nombre_producto else next(iter(opciones_pendientes.keys()), None)
+        clave = nombre_producto if nombre_producto in opciones_pendientes else None
+
+        if not clave:
+            for k in opciones_pendientes.keys():
+                if nombre_producto in k:
+                    clave = k
+                    break
+
+        if not clave:
+            clave = next(iter(opciones_pendientes.keys()), None)
 
         if not clave or clave not in opciones_pendientes:
             return "No hay selección pendiente."
@@ -249,7 +261,10 @@ def ejecutar_accion(accion):
 
 
     if tipo == "eliminar":
-        productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
+
+        productos = Product.query.filter(Product.name == nombre_producto).all()
+        if not productos:
+            productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
 
         if not productos:
             return f"No existe el producto '{nombre_producto}'."
@@ -292,7 +307,9 @@ def ejecutar_accion(accion):
         if valor in ["Por definir", None, ""]:
             return "Necesito un valor para editar ese campo."
 
-        productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
+        productos = Product.query.filter(Product.name == nombre_producto).all()
+        if not productos:
+            productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
 
         if not productos:
             return f"No existe el producto '{nombre_producto}'."
