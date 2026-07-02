@@ -4,7 +4,7 @@ from datetime import date
 db = SQLAlchemy()
 
 # -----------------------------
-# Tabla de Rubros / Categorías
+# Categorías
 # -----------------------------
 class Category(db.Model):
     __tablename__ = "categories"
@@ -16,7 +16,7 @@ class Category(db.Model):
 
 
 # -----------------------------
-# Tabla de Marcas
+# Marcas
 # -----------------------------
 class Brand(db.Model):
     __tablename__ = "brands"
@@ -24,21 +24,32 @@ class Brand(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), unique=True, nullable=False)
 
-    products = db.relationship("Product", backref="brand", lazy=True)
+    variants = db.relationship("ProductVariant", backref="brand", lazy=True)
 
 
 # -----------------------------
-# Tabla de Productos (Catálogo Maestro)
+# Producto base (Catálogo Maestro)
 # -----------------------------
 class Product(db.Model):
     __tablename__ = "products"
 
     id = db.Column(db.Integer, primary_key=True)
-    sku = db.Column(db.String(120), nullable=True)
-
     name = db.Column(db.String(200), nullable=False)
 
     category_id = db.Column(db.Integer, db.ForeignKey("categories.id"), nullable=False)
+
+    variants = db.relationship("ProductVariant", backref="product", lazy=True)
+
+
+# -----------------------------
+# Variantes / SKU
+# -----------------------------
+class ProductVariant(db.Model):
+    __tablename__ = "product_variants"
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False)
     brand_id = db.Column(db.Integer, db.ForeignKey("brands.id"), nullable=False)
 
     type_variety = db.Column(db.String(200), nullable=True)
@@ -46,20 +57,20 @@ class Product(db.Model):
     content_value = db.Column(db.Float, nullable=True)
     content_unit = db.Column(db.String(20), nullable=True)
 
-    stock_alert = db.Column(db.Integer, nullable=True)
+    sku_code = db.Column(db.String(200), unique=True, nullable=True)
 
-    batches = db.relationship("InventoryBatch", backref="product", lazy=True)
+    batches = db.relationship("InventoryBatch", backref="variant", lazy=True)
 
 
 # -----------------------------
-# Tabla de Lotes / Ingresos
+# Lotes / Ingresos
 # -----------------------------
 class InventoryBatch(db.Model):
     __tablename__ = "inventory_batches"
 
     id = db.Column(db.Integer, primary_key=True)
 
-    product_id = db.Column(db.Integer, db.ForeignKey("products.id"), nullable=False)
+    variant_id = db.Column(db.Integer, db.ForeignKey("product_variants.id"), nullable=False)
 
     quantity = db.Column(db.Integer, nullable=False)
 
