@@ -1,7 +1,7 @@
 "use client";
 
 import { useIsClient } from "@/hooks/useIsClient";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   PieChart,
   Pie,
@@ -19,19 +19,27 @@ type Lote = {
   id: number;
   quantity: number;
   arrival_date: string;
-  expiration_date: string;
+  expiration_date: string | null;
+};
+
+type Variante = {
+  variant_id: number;
+  brand: string;
+  type_variety: string;
+  content_value: number;
+  content_unit: string;
+  sku_code: string;
+  total_quantity: number;
+  batches: Lote[];
+  product_name: string;
+  category: string;
 };
 
 type Producto = {
   id: number;
   name: string;
-  brand: string;
   category: string;
-  type_variety: string;
-  content_value: number;
-  content_unit: string;
-  total_quantity: number;
-  batches: Lote[];
+  variants: Omit<Variante, "product_name" | "category">[];
 };
 
 export default function Home() {
@@ -49,20 +57,29 @@ export default function Home() {
       .catch(() => setLoading(false));
   }, []);
 
+  const variantes = useMemo(() => {
+    return productos.flatMap((p) =>
+      p.variants.map((v) => ({
+        ...v,
+        product_name: p.name,
+        category: p.category,
+      }))
+    );
+  }, [productos]);
 
-  const totalInventario = productos.reduce(
-    (acc, p) => acc + p.total_quantity,
+  const totalInventario = variantes.reduce(
+    (acc, v) => acc + v.total_quantity,
     0
   );
 
-  const productosRegistrados = productos.length;
+  const variantesRegistradas = variantes.length;
 
   const consultasIA = 0;
 
   const categoriasMap: Record<string, number> = {};
-  productos.forEach((p) => {
-    const cat = p.category || "Sin categoría";
-    categoriasMap[cat] = (categoriasMap[cat] || 0) + p.total_quantity;
+  variantes.forEach((v) => {
+    const cat = v.category || "Sin categoría";
+    categoriasMap[cat] = (categoriasMap[cat] || 0) + v.total_quantity;
   });
 
   const dataCategorias = Object.entries(categoriasMap).map(
@@ -75,9 +92,9 @@ export default function Home() {
   const colores = ["#f97316", "#fb923c", "#fdba74", "#fed7aa", "#ffedd5"];
 
   const stockLevels = {
-    alto: productos.filter((p) => p.total_quantity >= 20).length,
-    medio: productos.filter((p) => p.total_quantity >= 10 && p.total_quantity < 20).length,
-    bajo: productos.filter((p) => p.total_quantity < 10).length,
+    alto: variantes.filter((v) => v.total_quantity >= 20).length,
+    medio: variantes.filter((v) => v.total_quantity >= 10 && v.total_quantity < 20).length,
+    bajo: variantes.filter((v) => v.total_quantity < 10).length,
   };
 
   const dataStock = [
@@ -135,7 +152,7 @@ export default function Home() {
             <h3 className="text-gray-400 text-lg">Productos Registrados</h3>
             <span className="text-orange-500 text-4xl drop-shadow-[0_0_10px_rgba(249,115,22,0.4)]">📄</span>
           </div>
-          <p className="text-5xl font-bold text-orange-500 mt-2">{productosRegistrados}</p>
+          <p className="text-5xl font-bold text-orange-500 mt-2">{variantesRegistradas}</p>
           <div className="h-[3px] w-full bg-orange-500/20 mt-4 rounded-full"></div>
         </div>
 
@@ -223,7 +240,7 @@ export default function Home() {
                     }}
                     labelStyle={{ color: "#f97316" }}
                     itemStyle={{ color: "#f97316" }}
-                    formatter={(value) => [`${value} productos`, "Cantidad"]}
+                    formatter={(value) => [`${value} variantes`, "Cantidad"]}
                   />
 
                   <Bar

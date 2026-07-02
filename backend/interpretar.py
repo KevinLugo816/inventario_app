@@ -22,97 +22,98 @@ def interpretar_mensaje(mensaje: str, contexto: str = ""):
             mensaje = mensaje.replace(f"{d}-{m}-{y}", "Por definir")
 
     if any(x in texto for x in ["ponle", "agrega", "añade"]) and "más" in texto:
-        contexto += "\n[INTENCION_INFERIDA]: editar_cantidad"
+        contexto += "\n[INTENCION_INFERIDA]: edit_quantity"
 
-    if "cámbial" in texto or "actualiza" in texto:
-        contexto += "\n[INTENCION_INFERIDA]: editar"
+    if any(x in texto for x in ["cámbial", "cambia", "actualiza", "modifica"]):
+        contexto += "\n[INTENCION_INFERIDA]: edit"
 
     if texto in ["sí", "ok", "dale", "ese", "esa", "el primero", "el segundo"]:
-        contexto += "\n[INTENCION_INFERIDA]: seleccionar"
+        contexto += "\n[INTENCION_INFERIDA]: select"
 
     if texto.startswith(("agrega", "añade", "añadir", "pon ", "ponle", "registra", "ingresa")):
-        contexto += "\n[FORZAR_ACCION]: agregar"
-
-    def singularizar(p):
-        p = p.lower().strip()
-        if p.endswith("es"):
-            return p[:-2]
-        if p.endswith("s"):
-            return p[:-1]
-        return p
+        contexto += "\n[FORZAR_ACCION]: add"
 
     prompt = f"""
-Eres Bell, un asistente experto en inventario profesional.  
-Tu única salida debe ser SIEMPRE un JSON válido.  
+Eres Bell, un asistente experto en inventario profesional.
+Tu única salida debe ser SIEMPRE un JSON válido.
 Nunca escribas texto fuera del JSON.
 
-ANTES DE RESPONDER:
-- Analiza la intención del usuario.
-- Analiza el contexto previo.
-- Analiza si el usuario está continuando una selección.
-- Analiza si el usuario está corrigiendo un mensaje anterior.
-- Analiza si el usuario está dando una instrucción implícita.
-- No muestres tu razonamiento interno.
+Ahora trabajas con una arquitectura profesional de inventario con:
+- Product (producto base)
+- ProductVariant (variante / SKU)
+- InventoryBatch (lotes)
 
-OBJETIVO:
-Interpretar el mensaje del usuario y devolver un JSON con la acción correcta y los campos necesarios.
-
-REGLAS GENERALES:
-- SOLO JSON puro.
-- Si falta un campo, usa "Por definir".
-- arrival_date por defecto = fecha actual en DD-MM-YYYY.
-- Convierte plurales a singular.
-- Si el usuario dice "por definir", respétalo.
-- Prioridad: agregar > editar > eliminar > consultar.
-- Si el usuario consulta por marca, tipo, categoría o contenido, incluye "producto".
-- Si el usuario consulta cantidades, incluye "producto".
-- Si el usuario está eligiendo entre variantes, acción = seleccionar.
-- Si el mensaje es ambiguo pero existe contexto suficiente, usa el contexto.
-- Si detectas inconsistencias, corrige y marca "opcion": "correccion".
-
-REGLA CRÍTICA PARA AGREGAR:
-Si el mensaje empieza con "agrega", "añade", "añadir", "pon", "ponle", "registra", "ingresa",
-la acción SIEMPRE debe ser "agregar".
-
-Si CONTEXTO PREVIO contiene "[FORZAR_ACCION]: agregar", entonces la acción debe ser "agregar".
-
-Para la acción "agregar", SIEMPRE debes devolver al menos:
+Tu tarea es interpretar el mensaje del usuario y devolver un CONTRATO JSON con esta estructura:
 
 {{
-  "accion": "agregar",
-  "producto": "...",
-  "cantidad": 0,
-  "brand": "Por definir",
-  "category": "Por definir",
-  "type_variety": "Por definir",
-  "content_value": "Por definir",
-  "content_unit": "Por definir",
-  "arrival_date": "{hoy}",
-  "expiration_date": "Por definir"
+  "action": "add" | "edit" | "delete" | "query" | "select",
+  "target": {{
+    "product_name": "...",
+    "brand": "...",
+    "category": "...",
+    "type_variety": "...",
+    "content_value": 0,
+    "content_unit": "ml",
+    "sku_code": "opcional"
+  }},
+  "batch": {{
+    "quantity": 0,
+    "arrival_date": "{hoy}",
+    "expiration_date": "Por definir"
+  }},
+  "changes": {{
+    "field": "content_value",
+    "value": 900,
+    "extra": {{
+      "content_unit": "ml"
+    }}
+  }},
+  "option": "opcional para selección"
 }}
 
-Si el usuario no menciona un campo, rellénalo con "Por definir" o 0.
+REGLAS:
 
-ACCIONES DISPONIBLES:
-- agregar
-- eliminar
-- consultar
-- editar
-- seleccionar
+- SOLO JSON puro.
+- "action" debe ser una de: "add", "edit", "delete", "query", "select".
+- "target.product_name" SIEMPRE debe estar si el usuario menciona un producto.
+- Si el usuario menciona marca, variedad, contenido, unidad, inclúyelos en "target".
+- Para "add":
+  - Usa "action": "add".
+  - Llena "target" con la descripción del producto/variante.
+  - Llena "batch" con cantidad y fechas.
+  - Si falta algo, usa "Por definir" o 0.
+- Para "edit":
+  - Usa "action": "edit".
+  - "target" identifica el producto/variante.
+  - "changes" indica qué campo se modifica.
+  - Ejemplo: cambiar contenido del aceite a 900 ml:
+    "changes": {{
+      "field": "content_value",
+      "value": 900,
+      "extra": {{
+        "content_unit": "ml"
+      }}
+    }}
+- Para "delete":
+  - Usa "action": "delete".
+  - "target" identifica el producto/variante.
+  - "batch.quantity" indica cuánto eliminar.
+- Para "query":
+  - Usa "action": "query".
+  - "target" describe qué producto/variante consultar.
+- Para "select":
+  - Usa "action": "select".
+  - "option" indica la selección (número o descripción).
 
-CAMPOS DISPONIBLES:
-- producto
-- brand
-- category
-- type_variety
-- content_value
-- content_unit
-- cantidad
-- arrival_date
-- expiration_date
-- campo
-- valor
-- opcion
+REGLAS DE FECHAS:
+- arrival_date por defecto = fecha actual en DD-MM-YYYY: "{hoy}".
+- Si el usuario dice "por definir" para fechas, usa "Por definir".
+
+REGLAS DE CONTENIDO:
+- Si el usuario dice "900 ml", separa:
+  - content_value = 900
+  - content_unit = "ml"
+- Si solo dice "contenido", pero no valor, usa "Por definir".
 
 INTERPRETA ESTE MENSAJE:
 {mensaje}
@@ -137,76 +138,63 @@ CONTEXTO PREVIO:
             raise ValueError("No se encontró JSON válido")
 
         contenido = contenido[inicio:fin+1]
-        accion_json = json.loads(contenido)
+        contrato = json.loads(contenido)
 
-        if "producto" in accion_json:
-            accion_json["producto"] = singularizar(accion_json["producto"])
 
-        acciones_validas = ["agregar", "eliminar", "consultar", "editar", "seleccionar"]
-        if accion_json.get("accion") not in acciones_validas:
-            accion_json["accion"] = "error"
+        if "action" not in contrato:
+            contrato["action"] = "query"
 
-        fecha = accion_json.get("arrival_date", "").strip()
+        if "target" not in contrato or not isinstance(contrato["target"], dict):
+            contrato["target"] = {}
 
+        if "batch" not in contrato or not isinstance(contrato.get("batch"), dict):
+            contrato["batch"] = {
+                "quantity": 0,
+                "arrival_date": hoy,
+                "expiration_date": "Por definir"
+            }
+
+        if "changes" not in contrato or not isinstance(contrato.get("changes"), dict):
+            contrato["changes"] = {}
+
+        fecha = str(contrato["batch"].get("arrival_date", "")).strip()
         if fecha.lower() in ["", "por definir", "-", "none", "null"]:
-            accion_json["arrival_date"] = hoy
+            contrato["batch"]["arrival_date"] = hoy
         else:
             try:
                 if "-" in fecha and len(fecha.split("-")[0]) == 4:
                     y, m, d = fecha.split("-")
-                    accion_json["arrival_date"] = f"{d}-{m}-{y}"
+                    contrato["batch"]["arrival_date"] = f"{d}-{m}-{y}"
             except:
-                accion_json["arrival_date"] = hoy
+                contrato["batch"]["arrival_date"] = hoy
 
-        if accion_json.get("accion") == "editar":
-            campo = accion_json.get("campo")
+        if contrato["changes"].get("field") == "content_value":
+            valor = contrato["changes"].get("value")
+            extra = contrato["changes"].get("extra", {})
 
-            if not campo:
-                if "marca" in texto:
-                    campo = "brand"
-                elif "categoria" in texto or "rubro" in texto:
-                    campo = "category"
-                elif "tipo" in texto or "variedad" in texto:
-                    campo = "type_variety"
-                elif "contenido" in texto:
-                    match = re.search(r"(\d+)\s*(ml|l|kg|g)|(\d+)(ml|l|kg|g)", texto)
-                    if match:
-                        accion_json["campo"] = "content_value"
-                        accion_json["valor"] = match.group(1)
-                        accion_json["content_unit"] = match.group(2)
-                    else:
-                        campo = "content_value"
-                elif "ingreso" in texto:
-                    campo = "arrival_date"
-                elif "caduc" in texto or "vence" in texto:
-                    campo = "expiration_date"
+            if isinstance(valor, str):
+                match = re.search(r"(\d+)\s*(ml|l|kg|g)|(\d+)(ml|l|kg|g)", valor.lower())
+                if match:
+                    numero = match.group(1) or match.group(3)
+                    unidad = match.group(2) or match.group(4)
+                    contrato["changes"]["value"] = float(numero)
+                    extra["content_unit"] = unidad
+                    contrato["changes"]["extra"] = extra
 
-                accion_json["campo"] = campo if campo else "Por definir"
-
-            if accion_json.get("valor") in [None, "", "Por definir"]:
-                if accion_json["campo"] in accion_json:
-                    accion_json["valor"] = accion_json[accion_json["campo"]]
-
-        if accion_json.get("accion") == "eliminar":
-            if accion_json.get("cantidad", 0) < 0:
-                accion_json["cantidad"] = abs(accion_json["cantidad"])
-
-        if accion_json.get("accion") == "agregar":
-            obligatorios = [
-                "producto", "cantidad", "brand", "category",
-                "type_variety", "content_value", "content_unit",
-                "arrival_date", "expiration_date"
-            ]
-            for c in obligatorios:
-                if c not in accion_json or accion_json[c] in ["", None]:
-                    accion_json[c] = "Por definir" if c != "cantidad" else 0
-
-        if accion_json.get("accion") == "seleccionar":
-            if not accion_json.get("producto"):
-                accion_json["producto"] = "por_definir"
-
-        return accion_json
+        return contrato
 
     except Exception as e:
         print("Error interpretando mensaje:", e)
-        return {"accion": "error", "producto": "", "cantidad": 0}
+        return {
+            "action": "query",
+            "target": {
+                "product_name": "",
+            },
+            "batch": {
+                "quantity": 0,
+                "arrival_date": hoy,
+                "expiration_date": "Por definir"
+            },
+            "changes": {},
+            "option": None
+        }

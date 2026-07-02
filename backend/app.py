@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
-from models import db, Category, Brand, Product, InventoryBatch
+from models import db, Category, Brand, Product, ProductVariant, InventoryBatch
 from interpretar import interpretar_mensaje
 from ejecutar import ejecutar_accion
 import os
@@ -28,29 +28,42 @@ def inventario():
         resultado = []
 
         for p in productos:
-            lotes = InventoryBatch.query.filter_by(product_id=p.id).all()
-            total = sum(l.quantity for l in lotes)
-
-            resultado.append({
+            producto_json = {
                 "id": p.id,
                 "name": p.name,
-                "brand": p.brand.name if p.brand else None,
                 "category": p.category.name if p.category else None,
-                "type_variety": p.type_variety,
-                "content_value": p.content_value,
-                "content_unit": p.content_unit,
-                "stock_alert": p.stock_alert,
-                "total_quantity": total,
-                "batches": [
-                    {
-                        "id": l.id,
-                        "quantity": l.quantity,
-                        "arrival_date": l.arrival_date.strftime("%Y-%m-%d"),
-                        "expiration_date": l.expiration_date.strftime("%Y-%m-%d") if l.expiration_date else None
-                    }
-                    for l in lotes
-                ]
-            })
+                "variants": []
+            }
+
+            for v in p.variants:
+                lotes = InventoryBatch.query.filter_by(variant_id=v.id).all()
+                total = sum(l.quantity for l in lotes)
+
+                variante_json = {
+                    "variant_id": v.id,
+                    "brand": v.brand.name if v.brand else None,
+                    "type_variety": v.type_variety,
+                    "content_value": v.content_value,
+                    "content_unit": v.content_unit,
+                    "sku_code": v.sku_code,
+                    "total_quantity": total,
+                    "batches": [
+                        {
+                            "id": l.id,
+                            "quantity": l.quantity,
+                            "arrival_date": l.arrival_date.strftime("%Y-%m-%d"),
+                            "expiration_date": (
+                                l.expiration_date.strftime("%Y-%m-%d")
+                                if l.expiration_date else None
+                            )
+                        }
+                        for l in lotes
+                    ]
+                }
+
+                producto_json["variants"].append(variante_json)
+
+            resultado.append(producto_json)
 
         return jsonify({"productos": resultado})
 

@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from models import db, Category, Brand, Product, InventoryBatch
+from models import db, Category, Brand, Product, ProductVariant, InventoryBatch
 
 opciones_pendientes = {}
 
@@ -52,310 +52,238 @@ def obtener_o_crear_marca(nombre):
     return marca
 
 
-def obtener_o_crear_producto(nombre, marca, categoria, tipo_variedad, contenido_valor, contenido_unidad, alerta):
-    if contenido_valor in ["Por definir", None, ""]:
-        contenido_valor = None
+def obtener_o_crear_producto(nombre, categoria):
+    prod = Product.query.filter_by(name=nombre, category_id=categoria.id).first()
+    if not prod:
+        prod = Product(name=nombre, category_id=categoria.id)
+        db.session.add(prod)
+        db.session.commit()
+    return prod
 
-    if contenido_unidad in ["Por definir", None, ""]:
-        contenido_unidad = None
 
-    prod = Product.query.filter_by(
-        name=nombre,
+def obtener_o_crear_variante(producto, marca, tipo_variedad, contenido_valor, contenido_unidad):
+    variante = ProductVariant.query.filter_by(
+        product_id=producto.id,
         brand_id=marca.id,
-        category_id=categoria.id,
         type_variety=tipo_variedad,
         content_value=contenido_valor,
         content_unit=contenido_unidad
     ).first()
 
-    if not prod:
-        prod = Product(
-            name=nombre,
+    if not variante:
+        sku = f"{producto.name}-{marca.name}-{tipo_variedad}-{contenido_valor}{contenido_unidad}"
+        variante = ProductVariant(
+            product_id=producto.id,
             brand_id=marca.id,
-            category_id=categoria.id,
             type_variety=tipo_variedad,
             content_value=contenido_valor,
             content_unit=contenido_unidad,
-            stock_alert=alerta
+            sku_code=sku
         )
-        db.session.add(prod)
+        db.session.add(variante)
         db.session.commit()
 
-    return prod
+    return variante
 
 
-def ejecutar_accion(accion):
-    global opciones_pendientes
+def resolver_variante(target):
+    nombre = (target.get("product_name") or "").lower()
+    marca_txt = target.get("brand")
+    variedad_txt = target.get("type_variety")
+    valor = target.get("content_value")
+    unidad = target.get("content_unit")
 
-    tipo = accion.get("accion")
-    nombre_producto = (accion.get("producto") or "").strip().lower()
+    # 1. Buscar producto base
+    productos = Product.query.filter(Product.name.ilike(nombre)).all()
+    if not productos:
+        return None, "No existe el producto solicitado."
 
-    marca_txt = accion.get("brand")
-    categoria_txt = accion.get("category")
-    tipo_variedad = accion.get("type_variety")
-    contenido_valor = accion.get("content_value")
-    contenido_unidad = accion.get("content_unit")
-    alerta = accion.get("stock_alert")
+    # Si hay varios productos base, elegir el primero (normalmente no pasa)
+    producto = productos[0]
 
-    cantidad = normalizar_cantidad(accion.get("cantidad") or 0)
-    fecha_ingreso = normalizar_fecha(accion.get("arrival_date"))
-    fecha_caducidad = normalizar_fecha(accion.get("expiration_date"))
+    # 2. Buscar variantes del producto
+    variantes = ProductVariant.query.filter_by(product_id=producto.id).all()
 
-    if not fecha_ingreso:
-        fecha_ingreso = date.today().strftime("%Y-%m-%d")
+    # Filtrar por marca
+    if marca_txt and marca_txt != "Por definir":
+        variantes = [v for v in variantes if v.brand.name.lower() == marca_txt.lower()]
+
+    # Filtrar por variedad
+    if variedad_txt and variedad_txt != "Por definir":
+        variantes = [v for v in variantes if (v.type_variety or "").lower() == variedad_txt.lower()]
+
+    # Filtrar por contenido
+    if valor not in ["Por definir", None] and unidad not in ["Por definir", None]:
+        variantes = [
+            v for v in variantes
+            if v.content_value == float(valor) and v.content_unit == unidad
+        ]
+
+    if len(variantes) == 0:
+        return None, "No existe una variante que coincida con la descripción."
+
+    if len(variantes) > 1:
+        return None, "Hay varias variantes. Especifica marca, variedad o contenido."
+
+    return variantes[0], None
 
 
-    if tipo == "agregar":
-        categoria = obtener_o_crear_categoria(categoria_txt)
-        marca = obtener_o_crear_marca(marca_txt)
+def ejecutar_accion(contrato):
+    action = contrato.get("action")
+    target = contrato.get("target", {})
+    batch = contrato.get("batch", {})
+    changes = contrato.get("changes", {})
+    option = contrato.get("option")
 
-        producto = obtener_o_crear_producto(
-            nombre_producto,
+
+    if action == "add":
+        categoria = obtener_o_crear_categoria(target.get("category"))
+        marca = obtener_o_crear_marca(target.get("brand"))
+        producto = obtener_o_crear_producto(target.get("product_name"), categoria)
+
+        contenido_valor = target.get("content_value")
+        contenido_unidad = target.get("content_unit")
+
+        if contenido_valor in ["Por definir", None, ""]:
+            contenido_valor = None
+        if contenido_unidad in ["Por definir", None, ""]:
+            contenido_unidad = None
+
+        variante = obtener_o_crear_variante(
+            producto,
             marca,
-            categoria,
-            tipo_variedad,
+            target.get("type_variety"),
             contenido_valor,
-            contenido_unidad,
-            alerta
+            contenido_unidad
         )
 
         lote = InventoryBatch(
-            product_id=producto.id,
-            quantity=cantidad,
-            arrival_date=fecha_ingreso,
-            expiration_date=fecha_caducidad
+            variant_id=variante.id,
+            quantity=normalizar_cantidad(batch.get("quantity")),
+            arrival_date=normalizar_fecha(batch.get("arrival_date")) or date.today(),
+            expiration_date=normalizar_fecha(batch.get("expiration_date"))
         )
 
         db.session.add(lote)
         db.session.commit()
 
-        total = sum(l.quantity for l in producto.batches)
-
-        return (
-            f"Producto agregado correctamente.\n\n"
-            f"Producto: {producto.name}\n"
-            f"Marca: {marca.name}\n"
-            f"Rubro: {categoria.name}\n"
-            f"Variedad: {producto.type_variety}\n"
-            f"Contenido: {producto.content_value} {producto.content_unit}\n\n"
-            f"Lote registrado:\n"
-            f"- Cantidad: {cantidad}\n"
-            f"- Ingreso: {fecha_ingreso}\n"
-            f"- Vencimiento: {fecha_caducidad or 'Sin fecha'}\n\n"
-            f"Cantidad total disponible ahora: {total} unidades."
-        )
+        return f"Variante agregada correctamente. SKU: {variante.sku_code}"
 
 
-    if tipo == "consultar":
+    if action == "query":
+        variante, error = resolver_variante(target)
+        if error:
+            return error
 
-        productos = Product.query.filter(Product.name == nombre_producto).all()
-
-        if not productos:
-            productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
-
-        if not productos:
-            return f"No tengo registros del producto '{nombre_producto}'."
-
-        if len(productos) == 1:
-            p = productos[0]
-            lotes = InventoryBatch.query.filter_by(product_id=p.id).all()
-            total = sum(l.quantity for l in lotes)
-
-            respuesta = (
-                f"Producto: {p.name}\n"
-                f"Marca: {p.brand.name}\n"
-                f"Rubro: {p.category.name}\n"
-                f"Variedad: {p.type_variety}\n"
-                f"Contenido: {p.content_value} {p.content_unit}\n\n"
-                f"Lotes disponibles:\n"
-            )
-
-            for i, l in enumerate(lotes, start=1):
-                respuesta += (
-                    f"{i}) Lote #{l.id}\n"
-                    f"- Cantidad: {l.quantity}\n"
-                    f"- Ingreso: {l.arrival_date}\n"
-                    f"- Vencimiento: {l.expiration_date or 'Sin fecha'}\n\n"
-                )
-
-            respuesta += f"Total disponible: {total} unidades."
-            return respuesta
-
-        opciones_pendientes[nombre_producto] = productos
-
-        respuesta = f"Se encontraron varias variantes de '{nombre_producto}':\n\n"
-
-        for i, p in enumerate(productos, start=1):
-            respuesta += (
-                f"{i})\n"
-                f"- Marca: {p.brand.name}\n"
-                f"- Variedad: {p.type_variety}\n"
-                f"- Contenido: {p.content_value} {p.content_unit}\n\n"
-            )
-
-        respuesta += "Indica el número o una característica (por ejemplo: 'marca')."
-        return respuesta
-
-
-    if tipo == "seleccionar":
-        seleccion = (accion.get("opcion") or "").lower()
-
-        clave = nombre_producto if nombre_producto in opciones_pendientes else None
-
-        if not clave:
-            for k in opciones_pendientes.keys():
-                if nombre_producto in k:
-                    clave = k
-                    break
-
-        if not clave:
-            clave = next(iter(opciones_pendientes.keys()), None)
-
-        if not clave or clave not in opciones_pendientes:
-            return "No hay selección pendiente."
-
-        lista = opciones_pendientes[clave]
-        elegido = None
-
-        if seleccion.isdigit():
-            n = int(seleccion)
-            if 1 <= n <= len(lista):
-                elegido = lista[n - 1]
-            else:
-                return "Número inválido."
-
-        else:
-            for p in lista:
-                if p.brand.name.lower() in seleccion or p.type_variety.lower() in seleccion:
-                    elegido = p
-                    break
-
-        if not elegido:
-            return "No encontré coincidencias."
-
-        del opciones_pendientes[clave]
-
-        lotes = InventoryBatch.query.filter_by(product_id=elegido.id).all()
+        lotes = InventoryBatch.query.filter_by(variant_id=variante.id).all()
         total = sum(l.quantity for l in lotes)
 
         respuesta = (
-            f"Producto seleccionado:\n\n"
-            f"Producto: {elegido.name}\n"
-            f"Marca: {elegido.brand.name}\n"
-            f"Rubro: {elegido.category.name}\n"
-            f"Variedad: {elegido.type_variety}\n"
-            f"Contenido: {elegido.content_value} {elegido.content_unit}\n\n"
-            f"Lotes disponibles:\n"
+            f"Producto: {variante.product.name}\n"
+            f"Marca: {variante.brand.name}\n"
+            f"Variedad: {variante.type_variety}\n"
+            f"Contenido: {variante.content_value} {variante.content_unit}\n"
+            f"SKU: {variante.sku_code}\n\n"
+            f"Lotes:\n"
         )
 
-        for i, l in enumerate(lotes, start=1):
+        for l in lotes:
             respuesta += (
-                f"{i}) Lote #{l.id}\n"
-                f"- Cantidad: {l.quantity}\n"
-                f"- Ingreso: {l.arrival_date}\n"
-                f"- Vencimiento: {l.expiration_date or 'Sin fecha'}\n\n"
+                f"- Lote #{l.id}: {l.quantity} unidades, "
+                f"Ingreso: {l.arrival_date}, "
+                f"Vence: {l.expiration_date or 'Sin fecha'}\n"
             )
 
-        respuesta += f"Total disponible: {total} unidades."
+        respuesta += f"\nTotal disponible: {total} unidades."
         return respuesta
 
 
-    if tipo == "eliminar":
+    if action == "edit":
+        variante, error = resolver_variante(target)
+        if error:
+            return error
 
-        productos = Product.query.filter(Product.name == nombre_producto).all()
-        if not productos:
-            productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
-
-        if not productos:
-            return f"No existe el producto '{nombre_producto}'."
-
-        if len(productos) > 1:
-            return "Hay varias variantes. Especifica marca o variedad."
-
-        producto = productos[0]
-        lotes = InventoryBatch.query.filter_by(product_id=producto.id).order_by(InventoryBatch.arrival_date.asc()).all()
-
-        cantidad_a_eliminar = cantidad
-
-        for lote in lotes:
-            if cantidad_a_eliminar <= 0:
-                break
-
-            if lote.quantity <= cantidad_a_eliminar:
-                cantidad_a_eliminar -= lote.quantity
-                db.session.delete(lote)
-            else:
-                lote.quantity -= cantidad_a_eliminar
-                cantidad_a_eliminar = 0
-
-        db.session.commit()
-
-        total = sum(l.quantity for l in producto.batches)
-
-        if total == 0:
-            db.session.delete(producto)
-            db.session.commit()
-            return f"Se eliminaron todas las unidades de '{nombre_producto}'. Producto eliminado."
-
-        return f"Se eliminaron unidades. Cantidad restante total: {total}."
-
-
-    if tipo == "editar":
-        campo = accion.get("campo")
-        valor = accion.get("valor")
-
-        if valor in ["Por definir", None, ""]:
-            return "Necesito un valor para editar ese campo."
-
-        productos = Product.query.filter(Product.name == nombre_producto).all()
-        if not productos:
-            productos = Product.query.filter(Product.name.ilike(f"%{nombre_producto}%")).all()
-
-        if not productos:
-            return f"No existe el producto '{nombre_producto}'."
-
-        if len(productos) > 1:
-            return "Hay varias variantes. Especifica marca o variedad."
-
-        producto = productos[0]
+        campo = changes.get("field")
+        valor = changes.get("value")
+        extra = changes.get("extra", {})
 
         if campo == "brand":
             marca = obtener_o_crear_marca(valor)
-            producto.brand_id = marca.id
-
-        elif campo == "category":
-            categoria = obtener_o_crear_categoria(valor)
-            producto.category_id = categoria.id
+            variante.brand_id = marca.id
 
         elif campo == "type_variety":
-            producto.type_variety = valor
+            variante.type_variety = valor
 
         elif campo == "content_value":
-            if "content_unit" in accion:
-                producto.content_unit = accion["content_unit"]
-            producto.content_value = float(valor)
+            variante.content_value = float(valor)
+            if "content_unit" in extra:
+                variante.content_unit = extra["content_unit"]
 
         elif campo == "content_unit":
-            producto.content_unit = valor
-
-        elif campo == "expiration_date":
-            lotes = InventoryBatch.query.filter_by(product_id=producto.id).all()
-            for lote in lotes:
-                lote.expiration_date = normalizar_fecha(valor)
+            variante.content_unit = valor
 
         elif campo == "arrival_date":
-            lotes = InventoryBatch.query.filter_by(product_id=producto.id).all()
-            for lote in lotes:
+            for lote in variante.batches:
                 lote.arrival_date = normalizar_fecha(valor)
 
-        elif campo == "stock_alert":
-            producto.stock_alert = int(valor)
+        elif campo == "expiration_date":
+            for lote in variante.batches:
+                lote.expiration_date = normalizar_fecha(valor)
 
         else:
             return f"El campo '{campo}' no es válido."
 
         db.session.commit()
-
         return f"El campo '{campo}' fue actualizado correctamente."
+
+
+    if action == "delete":
+        variante, error = resolver_variante(target)
+        if error:
+            return error
+
+        cantidad = normalizar_cantidad(batch.get("quantity"))
+        lotes = InventoryBatch.query.filter_by(variant_id=variante.id).order_by(InventoryBatch.arrival_date.asc()).all()
+
+        for lote in lotes:
+            if cantidad <= 0:
+                break
+
+            if lote.quantity <= cantidad:
+                cantidad -= lote.quantity
+                db.session.delete(lote)
+            else:
+                lote.quantity -= cantidad
+                cantidad = 0
+
+        db.session.commit()
+
+        total = sum(l.quantity for l in variante.batches)
+
+        return f"Eliminación completada. Cantidad restante: {total}."
+
+
+    if action == "select":
+        clave = target.get("product_name")
+        if clave not in opciones_pendientes:
+            return "No hay selección pendiente."
+
+        lista = opciones_pendientes[clave]
+
+        if option.isdigit():
+            idx = int(option)
+            if 1 <= idx <= len(lista):
+                variante = lista[idx - 1]
+            else:
+                return "Número inválido."
+        else:
+            variante = next((v for v in lista if option.lower() in v.sku_code.lower()), None)
+
+        if not variante:
+            return "No encontré coincidencias."
+
+        del opciones_pendientes[clave]
+
+        return f"Variante seleccionada: {variante.sku_code}"
 
     return "No entendí tu solicitud."
