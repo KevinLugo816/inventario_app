@@ -289,6 +289,19 @@ def ejecutar_accion(contrato):
 
         total = sum(l.quantity for l in variante.batches)
 
+        if total == 0:
+            db.session.delete(variante)
+            db.session.commit()
+
+            variantes_restantes = ProductVariant.query.filter_by(product_id=variante.product_id).all()
+            if len(variantes_restantes) == 0:
+                producto = Product.query.get(variante.product_id)
+                db.session.delete(producto)
+                db.session.commit()
+                return "Se eliminaron todas las unidades. Variante y producto eliminados."
+
+            return "Se eliminaron todas las unidades. Variante eliminada."
+
         return f"Eliminación completada. Cantidad restante: {total}."
 
 
