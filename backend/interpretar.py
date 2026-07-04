@@ -110,10 +110,30 @@ REGLAS DE FECHAS:
 - Si el usuario dice "por definir" para fechas, usa "Por definir".
 
 REGLAS DE CONTENIDO:
-- Si el usuario dice "900 ml", separa:
-  - content_value = 900
+- La IA NO debe convertir unidades.
+- Si el usuario dice "1 litro", entonces:
+  - content_value = 1
+  - content_unit = "litro"
+- Si el usuario dice "1000 ml", entonces:
+  - content_value = 1000
   - content_unit = "ml"
-- Si solo dice "contenido", pero no valor, usa "Por definir".
+- Si el usuario dice "1 kg", entonces:
+  - content_value = 1
+  - content_unit = "kg"
+- Si el usuario dice "contenido", pero no valor, usa:
+  - content_value = "Por definir"
+  - content_unit = "Por definir"
+- NO convertir litros a ml, ni ml a litros, ni kg a g, ni ninguna otra transformación.
+- NO interpretar "1 litro" como "1000 ml".
+- NO escalar unidades.
+- NO asumir equivalencias.
+- SOLO extraer exactamente lo que el usuario dijo.
+
+IMPORTANTE:
+- Si el usuario dice "litro", "litros" o "l", NO convertir a "ml".
+- Si el usuario dice "kg", "kilogramo", "kilogramos", NO convertir a "g".
+- Si el usuario dice "ml", "mililitro", "mililitros", NO convertir a "litro".
+- Se debe respetar la unidad EXACTA escrita por el usuario.
 
 INTERPRETA ESTE MENSAJE:
 {mensaje}

@@ -254,7 +254,7 @@ export default function Inventario() {
                     </td>
 
                     <td className="p-3 text-gray-300">
-                      {v.content_value} {v.content_unit}
+                      {v.content_value ? `${v.content_value} ${v.content_unit}` : "Por definir"}
                     </td>
 
                     <td className="p-3">{v.total_quantity}</td>

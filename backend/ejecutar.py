@@ -10,6 +10,29 @@ def normalizar_cantidad(valor):
         return 0
 
 
+def normalizar_contenido(valor, unidad_raw):
+    if valor in ["Por definir", None, ""]:
+        return None, None
+
+    try:
+        v = float(valor)
+    except:
+        return None, None
+
+    u = (unidad_raw or "").strip().lower()
+
+    if u in ["litro", "litros", "l"]:
+        return v, "L"
+    if u in ["kg", "kilogramo", "kilogramos"]:
+        return v, "kg"
+    if u in ["gramo", "gramos", "g"]:
+        return v, "g"
+    if u in ["ml", "mililitro", "mililitros"]:
+        return v, "ml"
+
+    return v, unidad_raw
+
+
 def normalizar_fecha(valor):
     if not valor or str(valor).lower() in ["-", "por definir", "none", "null"]:
         return None
@@ -62,6 +85,8 @@ def obtener_o_crear_producto(nombre, categoria):
 
 
 def obtener_o_crear_variante(producto, marca, tipo_variedad, contenido_valor, contenido_unidad):
+    contenido_valor, contenido_unidad = normalizar_contenido(contenido_valor, contenido_unidad)
+
     variante = ProductVariant.query.filter_by(
         product_id=producto.id,
         brand_id=marca.id,
@@ -71,7 +96,7 @@ def obtener_o_crear_variante(producto, marca, tipo_variedad, contenido_valor, co
     ).first()
 
     if not variante:
-        sku = f"{producto.name}-{marca.name}-{tipo_variedad}-{contenido_valor}{contenido_unidad}"
+        sku = f"{producto.name}-{marca.name}-{tipo_variedad}-{contenido_valor or ''}{contenido_unidad or ''}"
         variante = ProductVariant(
             product_id=producto.id,
             brand_id=marca.id,
@@ -157,17 +182,21 @@ def ejecutar_accion(contrato):
             contenido_unidad
         )
 
+        arrival = normalizar_fecha(batch.get("arrival_date"))
+        if not arrival:
+            arrival = date.today().strftime("%Y-%m-%d")
+
         lote = InventoryBatch(
             variant_id=variante.id,
             quantity=normalizar_cantidad(batch.get("quantity")),
-            arrival_date=normalizar_fecha(batch.get("arrival_date")) or date.today(),
+            arrival_date=arrival,
             expiration_date=normalizar_fecha(batch.get("expiration_date"))
         )
 
         db.session.add(lote)
         db.session.commit()
 
-        return f"Variante agregada correctamente. SKU: {variante.sku_code}"
+        return f"Producto agregado correctamente. SKU: {variante.sku_code}"
 
 
     if action == "query":
