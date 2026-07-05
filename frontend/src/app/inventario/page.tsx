@@ -239,25 +239,21 @@ export default function Inventario() {
                 return (
                   <tr
                     key={v.variant_id}
-                    className="border-b border-[#2a2a2a] hover:bg-[#2a2a2a]/40 transition relative group"
+                    className="border-b border-[#2a2a2a] hover:bg-[#2a2a2a]/40 transition group"
                   >
-                    {/* Tooltip de lotes */}
-                    <div className="absolute left-0 top-0 translate-y-[-100%] opacity-0 group-hover:opacity-100 transition bg-[#111] text-gray-300 p-3 rounded-lg border border-[#333] shadow-xl z-50 w-max">
-                      <p className="font-semibold text-orange-400 mb-1">Lotes:</p>
-                      {v.batches.length === 0 && (
-                        <p className="text-gray-500 text-sm">Sin lotes</p>
-                      )}
-                      {v.batches.map((l) => (
-                        <p key={l.id} className="text-sm">
-                          #{l.id} — {l.quantity} unidades
-                        </p>
-                      ))}
-                    </div>
-
-                    <td className="p-3">
+                    {/* Rubro con gradiente + tooltip de lotes */}
+                    <td className="p-3 relative">
                       <span className="px-3 py-1 bg-orange-600/20 text-orange-400 rounded-full text-sm">
                         {v.category}
                       </span>
+
+                      {v.batches.length > 0 && (
+                        <div className="absolute left-0 top-0 translate-y-[-110%] opacity-0 group-hover:opacity-100 transition bg-[#111] text-gray-300 px-3 py-2 rounded-lg border border-[#333] shadow-xl z-50 text-xs">
+                          {v.batches.map((l) => (
+                            <p key={l.id}>Lote: #{l.id}</p>
+                          ))}
+                        </div>
+                      )}
                     </td>
 
                     <td className="p-3 font-medium text-gray-200">{v.product_name}</td>
