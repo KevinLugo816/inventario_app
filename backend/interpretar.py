@@ -24,7 +24,7 @@ def interpretar_mensaje(mensaje: str, contexto: str = ""):
     if any(x in texto for x in ["ponle", "agrega", "añade"]) and "más" in texto:
         contexto += "\n[INTENCION_INFERIDA]: edit_quantity"
 
-    if any(x in texto for x in ["cámbial", "cambia", "actualiza", "modifica"]):
+    if any(x in texto for x in ["cámbial", "cambia", "actualiza", "modifica", "edita"]):
         contexto += "\n[INTENCION_INFERIDA]: edit"
 
     if texto in ["sí", "ok", "dale", "ese", "esa", "el primero", "el segundo"]:
@@ -33,17 +33,26 @@ def interpretar_mensaje(mensaje: str, contexto: str = ""):
     if texto.startswith(("agrega", "añade", "añadir", "pon ", "ponle", "registra", "ingresa")):
         contexto += "\n[FORZAR_ACCION]: add"
 
+    if "cambia el nombre" in texto or "renombra" in texto:
+        contexto += "\n[CAMBIO_NOMBRE_PRODUCTO]"
+
+    if "cambia el rubro" in texto or "cambia la categoría" in texto or "ponlo en la categoría" in texto:
+        contexto += "\n[CAMBIO_CATEGORIA]"
+
+    match_lote = re.search(r"lote\s*(#|\s*número\s*)?(\d+)", texto)
+    lote_id_detectado = int(match_lote.group(2)) if match_lote else None
+
     prompt = f"""
 Eres Bell, un asistente experto en inventario profesional.
 Tu única salida debe ser SIEMPRE un JSON válido.
 Nunca escribas texto fuera del JSON.
 
-Ahora trabajas con una arquitectura profesional de inventario con:
-- Product (producto base)
-- ProductVariant (variante / SKU)
-- InventoryBatch (lotes)
+Arquitectura:
+- Product
+- ProductVariant
+- InventoryBatch
 
-Tu tarea es interpretar el mensaje del usuario y devolver un CONTRATO JSON con esta estructura:
+Contrato JSON:
 
 {{
   "action": "add" | "edit" | "delete" | "query" | "select",
@@ -59,7 +68,8 @@ Tu tarea es interpretar el mensaje del usuario y devolver un CONTRATO JSON con e
   "batch": {{
     "quantity": 0,
     "arrival_date": "{hoy}",
-    "expiration_date": "Por definir"
+    "expiration_date": "Por definir",
+    "batch_id": "opcional"
   }},
   "changes": {{
     "field": "content_value",
@@ -68,77 +78,54 @@ Tu tarea es interpretar el mensaje del usuario y devolver un CONTRATO JSON con e
       "content_unit": "ml"
     }}
   }},
-  "option": "opcional para selección"
+  "option": "opcional"
 }}
 
-REGLAS:
+REGLAS DE ACCIONES:
 
-- SOLO JSON puro.
-- "action" debe ser una de: "add", "edit", "delete", "query", "select".
-- "target.product_name" SIEMPRE debe estar si el usuario menciona un producto.
-- Si el usuario menciona marca, variedad, contenido, unidad, inclúyelos en "target".
-- Para "add":
-  - Usa "action": "add".
-  - Llena "target" con la descripción del producto/variante.
-  - Llena "batch" con cantidad y fechas.
-  - Si falta algo, usa "Por definir" o 0.
-- Para "edit":
-  - Usa "action": "edit".
-  - "target" identifica el producto/variante.
-  - "changes" indica qué campo se modifica.
-  - Ejemplo: cambiar contenido del aceite a 900 ml:
-    "changes": {{
-      "field": "content_value",
-      "value": 900,
-      "extra": {{
-        "content_unit": "ml"
-      }}
-    }}
-- Para "delete":
-  - Usa "action": "delete".
-  - "target" identifica el producto/variante.
-  - "batch.quantity" indica cuánto eliminar.
-- Para "query":
-  - Usa "action": "query".
-  - "target" describe qué producto/variante consultar.
-- Para "select":
-  - Usa "action": "select".
-  - "option" indica la selección (número o descripción).
+ADD:
+- Crear variante y lote.
+- Si falta algo, usar "Por definir".
 
-REGLAS DE FECHAS:
-- arrival_date por defecto = fecha actual en DD-MM-YYYY: "{hoy}".
-- Si el usuario dice "por definir" para fechas, usa "Por definir".
+EDIT:
+- Cambiar cualquier campo del producto o variante.
+- Campos válidos:
+  - product_name
+  - category
+  - brand
+  - type_variety
+  - content_value
+  - content_unit
+  - arrival_date
+  - expiration_date
+  - batch_quantity (requiere batch_id)
+
+DELETE:
+- Eliminar cantidad de una variante.
+
+QUERY:
+- Consultar producto/variante.
+
+SELECT:
+- Selección de opciones.
 
 REGLAS DE CONTENIDO:
-- La IA NO debe convertir unidades.
-- Si el usuario dice "1 litro", entonces:
-  - content_value = 1
-  - content_unit = "litro"
-- Si el usuario dice "1000 ml", entonces:
-  - content_value = 1000
-  - content_unit = "ml"
-- Si el usuario dice "1 kg", entonces:
-  - content_value = 1
-  - content_unit = "kg"
-- Si el usuario dice "contenido", pero no valor, usa:
-  - content_value = "Por definir"
-  - content_unit = "Por definir"
-- NO convertir litros a ml, ni ml a litros, ni kg a g, ni ninguna otra transformación.
-- NO interpretar "1 litro" como "1000 ml".
+- NO convertir unidades.
+- "1 litro" → value=1, unit="litro"
+- "1000 ml" → value=1000, unit="ml"
+- "1 kg" → value=1, unit="kg"
+- Si falta contenido → "Por definir"
 - NO escalar unidades.
-- NO asumir equivalencias.
-- SOLO extraer exactamente lo que el usuario dijo.
+- NO interpretar equivalencias.
 
-IMPORTANTE:
-- Si el usuario dice "litro", "litros" o "l", NO convertir a "ml".
-- Si el usuario dice "kg", "kilogramo", "kilogramos", NO convertir a "g".
-- Si el usuario dice "ml", "mililitro", "mililitros", NO convertir a "litro".
-- Se debe respetar la unidad EXACTA escrita por el usuario.
+REGLAS DE FECHAS:
+- arrival_date por defecto = "{hoy}"
+- Si el usuario dice "por definir", usar "Por definir".
 
 INTERPRETA ESTE MENSAJE:
 {mensaje}
 
-CONTEXTO PREVIO:
+CONTEXTO:
 {contexto}
 """
 
@@ -157,25 +144,21 @@ CONTEXTO PREVIO:
         if inicio == -1 or fin == -1:
             raise ValueError("No se encontró JSON válido")
 
-        contenido = contenido[inicio:fin+1]
-        contrato = json.loads(contenido)
+        contrato = json.loads(contenido[inicio:fin+1])
 
+        contrato.setdefault("action", "query")
+        contrato.setdefault("target", {})
+        contrato.setdefault("batch", {
+            "quantity": 0,
+            "arrival_date": hoy,
+            "expiration_date": "Por definir"
+        })
+        contrato.setdefault("changes", {})
 
-        if "action" not in contrato:
-            contrato["action"] = "query"
-
-        if "target" not in contrato or not isinstance(contrato["target"], dict):
-            contrato["target"] = {}
-
-        if "batch" not in contrato or not isinstance(contrato.get("batch"), dict):
-            contrato["batch"] = {
-                "quantity": 0,
-                "arrival_date": hoy,
-                "expiration_date": "Por definir"
-            }
-
-        if "changes" not in contrato or not isinstance(contrato.get("changes"), dict):
-            contrato["changes"] = {}
+        if lote_id_detectado:
+            contrato["batch"]["batch_id"] = lote_id_detectado
+            if contrato["action"] == "edit":
+                contrato["changes"]["field"] = "batch_quantity"
 
         fecha = str(contrato["batch"].get("arrival_date", "")).strip()
         if fecha.lower() in ["", "por definir", "-", "none", "null"]:
@@ -207,9 +190,7 @@ CONTEXTO PREVIO:
         print("Error interpretando mensaje:", e)
         return {
             "action": "query",
-            "target": {
-                "product_name": "",
-            },
+            "target": {"product_name": ""},
             "batch": {
                 "quantity": 0,
                 "arrival_date": hoy,

@@ -112,37 +112,55 @@ def obtener_o_crear_variante(producto, marca, tipo_variedad, contenido_valor, co
 
 
 def resolver_variante(target):
-    nombre = (target.get("product_name") or "").lower()
-    marca_txt = target.get("brand")
-    variedad_txt = target.get("type_variety")
+    nombre = (target.get("product_name") or "").strip().lower()
+    marca_txt = (target.get("brand") or "").strip().lower()
+    variedad_txt = (target.get("type_variety") or "").strip().lower()
+    categoria_txt = (target.get("category") or "").strip().lower()
     valor = target.get("content_value")
     unidad = target.get("content_unit")
 
-    # 1. Buscar producto base
-    productos = Product.query.filter(Product.name.ilike(nombre)).all()
+    productos = Product.query.filter(Product.name.ilike(f"%{nombre}%")).all()
     if not productos:
         return None, "No existe el producto solicitado."
 
-    # Si hay varios productos base, elegir el primero (normalmente no pasa)
+    if len(productos) > 1 and categoria_txt not in ["", "por definir"]:
+        productos = [
+            p for p in productos
+            if p.category and p.category.name.lower() == categoria_txt
+        ]
+
+    if not productos:
+        return None, "No existe un producto que coincida con el nombre y rubro."
+
     producto = productos[0]
 
-    # 2. Buscar variantes del producto
     variantes = ProductVariant.query.filter_by(product_id=producto.id).all()
 
-    # Filtrar por marca
-    if marca_txt and marca_txt != "Por definir":
-        variantes = [v for v in variantes if v.brand.name.lower() == marca_txt.lower()]
-
-    # Filtrar por variedad
-    if variedad_txt and variedad_txt != "Por definir":
-        variantes = [v for v in variantes if (v.type_variety or "").lower() == variedad_txt.lower()]
-
-    # Filtrar por contenido
-    if valor not in ["Por definir", None] and unidad not in ["Por definir", None]:
+    if marca_txt and marca_txt != "por definir":
         variantes = [
             v for v in variantes
-            if v.content_value == float(valor) and v.content_unit == unidad
+            if v.brand and v.brand.name.lower() == marca_txt
         ]
+
+    if variedad_txt and variedad_txt != "por definir":
+        variantes = [
+            v for v in variantes
+            if (v.type_variety or "").lower() == variedad_txt
+        ]
+
+    if valor not in ["Por definir", None] and unidad not in ["Por definir", None]:
+        try:
+            valor_float = float(valor)
+            variantes = [
+                v for v in variantes
+                if v.content_value == valor_float and v.content_unit == unidad
+            ]
+        except:
+            pass
+
+    batch_id = target.get("batch_id") or None
+    if batch_id:
+        return variantes[0] if variantes else None, None
 
     if len(variantes) == 0:
         return None, "No existe una variante que coincida con la descripción."
@@ -230,49 +248,97 @@ def ejecutar_accion(contrato):
     if action == "edit":
         variante, error = resolver_variante(target)
         if error:
-            return error
+            return f"No se encontró el producto o variante especificada. {error}"
 
         campo = changes.get("field")
         valor = changes.get("value")
         extra = changes.get("extra", {})
+        batch_info = contrato.get("batch", {})
 
-        if campo == "brand":
-            marca = obtener_o_crear_marca(valor)
-            variante.brand_id = marca.id
+        if valor in ["Por definir", None, ""]:
+            return "Necesito un valor para editar ese campo."
+
+        nombre = variante.product.name
+        marca = variante.brand.name if variante.brand else "Sin marca"
+        variedad = variante.type_variety or "Sin variedad"
+        contenido = (
+            f"{variante.content_value} {variante.content_unit}"
+            if variante.content_value else "Por definir"
+        )
+
+        valor_anterior = None
+
+        if campo == "product_name":
+            valor_anterior = nombre
+            variante.product.name = valor
+
+        elif campo == "category":
+            valor_anterior = variante.product.category.name
+            nueva_categoria = obtener_o_crear_categoria(valor)
+            variante.product.category_id = nueva_categoria.id
+
+        elif campo == "brand":
+            valor_anterior = marca
+            nueva_marca = obtener_o_crear_marca(valor)
+            variante.brand_id = nueva_marca.id
 
         elif campo == "type_variety":
+            valor_anterior = variedad
             variante.type_variety = valor
 
         elif campo == "content_value":
+            valor_anterior = contenido
             variante.content_value = float(valor)
             if "content_unit" in extra:
                 variante.content_unit = extra["content_unit"]
 
         elif campo == "content_unit":
+            valor_anterior = contenido
             variante.content_unit = valor
 
         elif campo == "arrival_date":
+            valor_anterior = "varía por lote"
             for lote in variante.batches:
                 lote.arrival_date = normalizar_fecha(valor)
 
         elif campo == "expiration_date":
+            valor_anterior = "varía por lote"
             for lote in variante.batches:
                 lote.expiration_date = normalizar_fecha(valor)
+
+        elif campo == "batch_quantity":
+            lote_id = batch_info.get("batch_id")
+            if not lote_id:
+                return "Debes especificar el ID del lote que deseas editar."
+
+            lote = InventoryBatch.query.get(lote_id)
+            if not lote:
+                return f"No existe el lote con ID {lote_id}."
+
+            valor_anterior = lote.quantity
+            lote.quantity += int(valor)
 
         else:
             return f"El campo '{campo}' no es válido."
 
         db.session.commit()
-        return f"El campo '{campo}' fue actualizado correctamente."
+
+        return (
+            f"El campo '{campo}' del producto '{nombre}' fue actualizado.\n"
+            f"Valor anterior: {valor_anterior}\n"
+            f"Nuevo valor: {valor}"
+        )
 
 
     if action == "delete":
         variante, error = resolver_variante(target)
         if error:
-            return error
+            return f"No se encontró el producto o variante especificada. {error}"
 
         cantidad = normalizar_cantidad(batch.get("quantity"))
-        lotes = InventoryBatch.query.filter_by(variant_id=variante.id).order_by(InventoryBatch.arrival_date.asc()).all()
+        lotes = InventoryBatch.query.filter_by(
+            variant_id=variante.id
+        ).order_by(InventoryBatch.arrival_date.asc()).all()
 
         for lote in lotes:
             if cantidad <= 0:
@@ -289,20 +355,53 @@ def ejecutar_accion(contrato):
 
         total = sum(l.quantity for l in variante.batches)
 
+        nombre = variante.product.name
+        marca = variante.brand.name if variante.brand else "Sin marca"
+        variedad = variante.type_variety or "Sin variedad"
+        contenido = (
+            f"{variante.content_value} {variante.content_unit}"
+            if variante.content_value else "Por definir"
+        )
+
         if total == 0:
             db.session.delete(variante)
             db.session.commit()
 
-            variantes_restantes = ProductVariant.query.filter_by(product_id=variante.product_id).all()
+            variantes_restantes = ProductVariant.query.filter_by(
+                product_id=variante.product_id
+            ).all()
+
             if len(variantes_restantes) == 0:
                 producto = Product.query.get(variante.product_id)
                 db.session.delete(producto)
                 db.session.commit()
-                return "Se eliminaron todas las unidades. Variante y producto eliminados."
 
-            return "Se eliminaron todas las unidades. Variante eliminada."
+                return (
+                    f"Se eliminaron todas las unidades de:\n"
+                    f"- Producto: {nombre}\n"
+                    f"- Marca: {marca}\n"
+                    f"- Variedad: {variedad}\n"
+                    f"- Contenido: {contenido}\n\n"
+                    f"La variante y el producto fueron eliminados."
+                )
 
-        return f"Eliminación completada. Cantidad restante: {total}."
+            return (
+                f"Se eliminaron todas las unidades de:\n"
+                f"- Producto: {nombre}\n"
+                f"- Marca: {marca}\n"
+                f"- Variedad: {variedad}\n"
+                f"- Contenido: {contenido}\n\n"
+                f"La variante fue eliminada."
+            )
+
+        return (
+            f"Eliminación completada para:\n"
+            f"- Producto: {nombre}\n"
+            f"- Marca: {marca}\n"
+            f"- Variedad: {variedad}\n"
+            f"- Contenido: {contenido}\n\n"
+            f"Cantidad restante: {total}."
+        )
 
 
     if action == "select":
