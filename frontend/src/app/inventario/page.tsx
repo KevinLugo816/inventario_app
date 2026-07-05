@@ -241,19 +241,53 @@ export default function Inventario() {
                     key={v.variant_id}
                     className="border-b border-[#2a2a2a] hover:bg-[#2a2a2a]/40 transition group"
                   >
-                    {/* Rubro con gradiente + tooltip de lotes */}
-                    <td className="p-3 relative">
-                      <span className="px-3 py-1 bg-orange-600/20 text-orange-400 rounded-full text-sm">
+                    {/* Rubro con gradiente + tooltip */}
+                    <td className="p-3">
+                      <span className="px-3 py-1 bg-orange-600/20 text-orange-400 rounded-full text-sm relative inline-block">
                         {v.category}
-                      </span>
 
-                      {v.batches.length > 0 && (
-                        <div className="absolute left-0 top-0 translate-y-[-110%] opacity-0 group-hover:opacity-100 transition bg-[#111] text-gray-300 px-3 py-2 rounded-lg border border-[#333] shadow-xl z-50 text-xs">
-                          {v.batches.map((l) => (
-                            <p key={l.id}>Lote: #{l.id}</p>
-                          ))}
-                        </div>
-                      )}
+                        {v.batches.length > 0 && (
+                          <div
+                            className="
+                              absolute 
+                              left-1/2 
+                              -translate-x-1/2 
+                              -translate-y-full 
+                              mt-1
+                              opacity-0 
+                              group-hover:opacity-100 
+                              group-hover:translate-y-0
+                              transition-all 
+                              duration-300 
+                              bg-[#111] 
+                              text-gray-300 
+                              px-3 py-2 
+                              rounded-lg 
+                              border 
+                              border-[#333] 
+                              shadow-xl 
+                              z-50 
+                              text-xs
+                            "
+                          >
+                            <div
+                              className="
+                                absolute 
+                                left-1/2 
+                                top-full 
+                                -translate-x-1/2 
+                                w-0 h-0 
+                                border-l-8 border-r-8 border-t-8 
+                                border-l-transparent border-r-transparent border-t-[#111]
+                              "
+                            />
+
+                            {v.batches.map((l) => (
+                              <p key={l.id}>Lote: #{l.id}</p>
+                            ))}
+                          </div>
+                        )}
+                      </span>
                     </td>
 
                     <td className="p-3 font-medium text-gray-200">{v.product_name}</td>
