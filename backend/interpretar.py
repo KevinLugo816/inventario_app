@@ -111,12 +111,9 @@ SELECT:
 
 REGLAS DE CONTENIDO:
 - NO convertir unidades.
-- "1 litro" → value=1, unit="litro"
-- "1000 ml" → value=1000, unit="ml"
-- "1 kg" → value=1, unit="kg"
-- Si falta contenido → "Por definir"
 - NO escalar unidades.
 - NO interpretar equivalencias.
+- SOLO usar el contenido EXACTO que el usuario menciona.
 
 REGLAS DE FECHAS:
 - arrival_date por defecto = "{hoy}"
@@ -171,18 +168,16 @@ CONTEXTO:
             except:
                 contrato["batch"]["arrival_date"] = hoy
 
-        if contrato["changes"].get("field") == "content_value":
-            valor = contrato["changes"].get("value")
-            extra = contrato["changes"].get("extra", {})
+        texto_original = mensaje.lower()
 
-            if isinstance(valor, str):
-                match = re.search(r"(\d+)\s*(ml|l|kg|g)|(\d+)(ml|l|kg|g)", valor.lower())
-                if match:
-                    numero = match.group(1) or match.group(3)
-                    unidad = match.group(2) or match.group(4)
-                    contrato["changes"]["value"] = float(numero)
-                    extra["content_unit"] = unidad
-                    contrato["changes"]["extra"] = extra
+        menciona_contenido = any(
+            unidad in texto_original
+            for unidad in ["ml", "mililitro", "l ", "litro", "kg", "kilogramo", "g", "gramo"]
+        )
+
+        if not menciona_contenido:
+            contrato["target"]["content_value"] = None
+            contrato["target"]["content_unit"] = None
 
         return contrato
 

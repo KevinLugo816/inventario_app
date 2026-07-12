@@ -1,8 +1,0 @@
-flask
-flask-cors
-flask-sqlalchemy
-sqlalchemy
-groq
-gunicorn
-python-dotenv
-psycopg2-binary
