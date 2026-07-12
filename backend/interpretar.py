@@ -164,13 +164,14 @@ CONTEXTO:
                 contrato["changes"]["field"] = "batch_quantity"
 
         fecha = str(contrato["batch"].get("arrival_date", "")).strip()
-        if fecha.lower() in ["", "por definir", "-", "none", "null"]:
-            contrato["batch"]["arrival_date"] = hoy
+
+        # 🔥 CORRECCIÓN CRÍTICA: NO TOCAR FECHAS ISO
+        if "-" in fecha and len(fecha.split("-")[0]) == 4:
+            contrato["batch"]["arrival_date"] = fecha
         else:
             try:
-                if "-" in fecha and len(fecha.split("-")[0]) == 4:
-                    contrato["batch"]["arrival_date"] = fecha
-
+                d, m, y = fecha.split("-")
+                contrato["batch"]["arrival_date"] = f"{y}-{m}-{d}"
             except:
                 contrato["batch"]["arrival_date"] = hoy
 
@@ -183,6 +184,14 @@ CONTEXTO:
         if not menciona_contenido:
             contrato["target"]["content_value"] = None
             contrato["target"]["content_unit"] = None
+
+        # 🔥 NUEVO: separar contenido tipo "1kg"
+        if contrato["target"].get("content_value") and contrato["target"].get("content_unit") is None:
+            raw = contrato["target"]["content_value"]
+            match = re.match(r"(\d+(?:\.\d+)?)([a-zA-Z]+)", raw)
+            if match:
+                contrato["target"]["content_value"] = match.group(1)
+                contrato["target"]["content_unit"] = match.group(2)
 
         return contrato
 
