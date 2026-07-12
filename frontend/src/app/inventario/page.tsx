@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import EditarVariante from "../../components/EditarInv";
+import { PencilSquareIcon } from "@heroicons/react/24/solid";
 
 type Lote = {
   id: number;
@@ -62,6 +64,9 @@ export default function Inventario() {
   const [orden, setOrden] = useState<string | null>(null);
   const [direccion, setDireccion] = useState<"asc" | "desc">("asc");
   const [loading, setLoading] = useState(true);
+
+  const [editando, setEditando] = useState<Variante | null>(null);
+  const [formEdit, setFormEdit] = useState<any>({});
 
   useEffect(() => {
     fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`)
@@ -142,6 +147,29 @@ export default function Inventario() {
     });
   }, [variantesFiltradas, orden, direccion]);
 
+  async function guardarCambios() {
+    if (!editando) return;
+
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL}/api/editar_variante/${editando.variant_id}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formEdit),
+      }
+    );
+
+    if (res.ok) {
+      alert("Producto actualizado correctamente");
+      setEditando(null);
+
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/inventario`)
+        .then((res) => res.json())
+        .then((data) => setProductos(data.productos || []));
+    } else {
+      alert("Error al actualizar");
+    }
+  }
 
   if (loading) {
     return (
@@ -229,6 +257,8 @@ export default function Inventario() {
                 <th className="p-3 cursor-pointer" onClick={() => ordenarPor("fecha_caducidad")}>
                   Vencimiento {orden === "fecha_caducidad" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
+
+                <th className="p-3">Editar</th>
               </tr>
             </thead>
 
@@ -289,6 +319,25 @@ export default function Inventario() {
                     <td className={`p-3 font-semibold ${estadoCaducidad(lote?.expiration_date || null)}`}>
                       {formatearFecha(lote?.expiration_date || null)}
                     </td>
+
+                    <td className="p-3">
+                      <button
+                        onClick={() => {
+                          setEditando(v);
+                          setFormEdit({
+                            product_name: v.product_name,
+                            category: v.category,
+                            brand: v.brand,
+                            type_variety: v.type_variety,
+                            content_value: v.content_value,
+                            content_unit: v.content_unit,
+                          });
+                        }}
+                        className="text-blue-400 hover:text-blue-300 transition"
+                      >
+                        <PencilSquareIcon className="h-6 w-6" />
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -297,6 +346,15 @@ export default function Inventario() {
           </table>
         </div>
       </div>
+
+      {/* MODAL */}
+      <EditarVariante
+        variante={editando}
+        form={formEdit}
+        setForm={setFormEdit}
+        onClose={() => setEditando(null)}
+        onSave={guardarCambios}
+      />
     </div>
   );
 }

@@ -72,6 +72,57 @@ def inventario():
         return jsonify({"error": "Error obteniendo inventario"}), 500
 
 
+@app.route("/api/editar_variante/<int:variant_id>", methods=["PUT"])
+def editar_variante(variant_id):
+    try:
+        data = request.get_json()
+
+        variante = ProductVariant.query.get(variant_id)
+        if not variante:
+            return jsonify({"error": "Variante no encontrada"}), 404
+
+        campos = [
+            "type_variety",
+            "content_value",
+            "content_unit",
+            "sku_code"
+        ]
+
+        for campo in campos:
+            if campo in data:
+                setattr(variante, campo, data[campo])
+
+        if "brand" in data:
+            brand_name = data["brand"].strip()
+            brand = Brand.query.filter_by(name=brand_name).first()
+            if not brand:
+                brand = Brand(name=brand_name)
+                db.session.add(brand)
+            variante.brand = brand
+
+        if "product_name" in data or "category" in data:
+            producto = Product.query.get(variante.product_id)
+
+            if "product_name" in data:
+                producto.name = data["product_name"]
+
+            if "category" in data:
+                category_name = data["category"].strip()
+                category = Category.query.filter_by(name=category_name).first()
+                if not category:
+                    category = Category(name=category_name)
+                    db.session.add(category)
+                producto.category = category
+
+        db.session.commit()
+
+        return jsonify({"mensaje": "Producto actualizado"})
+
+    except Exception as e:
+        print("Error en /api/editar_variante:", e)
+        return jsonify({"error": "Error editando variante"}), 500
+
+
 @app.route("/asistente_ia", methods=["POST"])
 def asistente_ia():
     try:
