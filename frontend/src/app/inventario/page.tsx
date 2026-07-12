@@ -258,7 +258,6 @@ export default function Inventario() {
                   Vencimiento {orden === "fecha_caducidad" && (direccion === "asc" ? "▲" : "▼")}
                 </th>
 
-                <th className="p-3">Editar</th>
               </tr>
             </thead>
 

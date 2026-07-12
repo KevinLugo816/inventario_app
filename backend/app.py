@@ -21,6 +21,16 @@ with app.app_context():
     db.create_all()
 
 
+def generar_sku(producto, variante):
+    categoria = (producto.category.name if producto.category else "GEN").upper()
+    nombre = producto.name.replace(" ", "").upper()
+    marca = (variante.brand.name if variante.brand else "GEN").upper()
+    variedad = variante.type_variety.replace(" ", "").upper()
+    contenido = f"{variante.content_value}{variante.content_unit}".upper()
+
+    return f"{categoria}-{nombre}-{marca}-{variedad}-{contenido}"
+
+
 @app.route("/api/inventario", methods=["GET"])
 def inventario():
     try:
@@ -81,16 +91,30 @@ def editar_variante(variant_id):
         if not variante:
             return jsonify({"error": "Variante no encontrada"}), 404
 
-        campos = [
+        producto = Product.query.get(variante.product_id)
+        regenerar_sku = False
+
+        campos_sku = [
+            "product_name",
+            "category",
+            "brand",
             "type_variety",
             "content_value",
-            "content_unit",
-            "sku_code"
+            "content_unit"
         ]
 
-        for campo in campos:
-            if campo in data:
-                setattr(variante, campo, data[campo])
+        if "product_name" in data:
+            producto.name = data["product_name"]
+            regenerar_sku = True
+
+        if "category" in data:
+            category_name = data["category"].strip()
+            category = Category.query.filter_by(name=category_name).first()
+            if not category:
+                category = Category(name=category_name)
+                db.session.add(category)
+            producto.category = category
+            regenerar_sku = True
 
         if "brand" in data:
             brand_name = data["brand"].strip()
@@ -99,24 +123,22 @@ def editar_variante(variant_id):
                 brand = Brand(name=brand_name)
                 db.session.add(brand)
             variante.brand = brand
+            regenerar_sku = True
 
-        if "product_name" in data or "category" in data:
-            producto = Product.query.get(variante.product_id)
+        for campo in ["type_variety", "content_value", "content_unit"]:
+            if campo in data:
+                setattr(variante, campo, data[campo])
+                regenerar_sku = True
 
-            if "product_name" in data:
-                producto.name = data["product_name"]
-
-            if "category" in data:
-                category_name = data["category"].strip()
-                category = Category.query.filter_by(name=category_name).first()
-                if not category:
-                    category = Category(name=category_name)
-                    db.session.add(category)
-                producto.category = category
+        if regenerar_sku:
+            variante.sku_code = generar_sku(producto, variante)
 
         db.session.commit()
 
-        return jsonify({"mensaje": "Producto actualizado"})
+        return jsonify({
+            "mensaje": "Variante actualizada correctamente",
+            "sku": variante.sku_code
+        })
 
     except Exception as e:
         print("Error en /api/editar_variante:", e)
