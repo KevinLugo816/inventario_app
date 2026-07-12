@@ -1,5 +1,5 @@
 from datetime import datetime, date
-from models import db, Category, Brand, Product, ProductVariant, InventoryBatch
+from backend.models import db, Category, Brand, Product, ProductVariant, InventoryBatch
 
 opciones_pendientes = {}
 

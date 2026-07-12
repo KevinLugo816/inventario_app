@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
-from models import db, Category, Brand, Product, ProductVariant, InventoryBatch
+from backend.models import db, Category, Brand, Product, ProductVariant, InventoryBatch
 from interpretar import interpretar_mensaje
 from ejecutar import ejecutar_accion
 import os
