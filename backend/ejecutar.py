@@ -84,6 +84,21 @@ def obtener_o_crear_producto(nombre, categoria):
     return prod
 
 
+def generar_sku(producto, marca, tipo_variedad, contenido_valor, contenido_unidad):
+    nombre = (producto.name or "").replace(" ", "").upper()
+    marca_txt = (marca.name if marca else "SINMARCA").replace(" ", "").upper()
+    variedad_txt = (tipo_variedad or "").replace(" ", "").upper()
+    contenido_txt = ""
+    if contenido_valor is not None and contenido_unidad:
+        contenido_txt = f"{contenido_valor}{contenido_unidad}".upper()
+
+    categoria_txt = "GEN"
+    if producto.category:
+        categoria_txt = producto.category.name.replace(" ", "").upper()
+
+    return f"{categoria_txt}-{nombre}-{marca_txt}-{variedad_txt}-{contenido_txt}"
+
+
 def obtener_o_crear_variante(producto, marca, tipo_variedad, contenido_valor, contenido_unidad):
     contenido_valor, contenido_unidad = normalizar_contenido(contenido_valor, contenido_unidad)
 
@@ -96,7 +111,7 @@ def obtener_o_crear_variante(producto, marca, tipo_variedad, contenido_valor, co
     ).first()
 
     if not variante:
-        sku = f"{producto.name}-{marca.name}-{tipo_variedad}-{contenido_valor or ''}{contenido_unidad or ''}"
+        sku = generar_sku(producto, marca, tipo_variedad, contenido_valor, contenido_unidad)
         variante = ProductVariant(
             product_id=producto.id,
             brand_id=marca.id,
@@ -150,10 +165,10 @@ def resolver_variante(target):
 
     if valor not in ["Por definir", None] and unidad not in ["Por definir", None]:
         try:
-            valor_float = float(valor)
+            valor_norm, unidad_norm = normalizar_contenido(valor, unidad)
             variantes = [
                 v for v in variantes
-                if v.content_value == valor_float and v.content_unit == unidad
+                if v.content_value == valor_norm and v.content_unit == unidad_norm
             ]
         except:
             pass
@@ -267,44 +282,54 @@ def ejecutar_accion(contrato):
         )
 
         valor_anterior = None
+        regenerar_sku_flag = False
 
         if campo == "product_name":
             valor_anterior = nombre
             variante.product.name = valor
+            regenerar_sku_flag = True
 
         elif campo == "category":
-            valor_anterior = variante.product.category.name
+            valor_anterior = variante.product.category.name if variante.product.category else "General"
             nueva_categoria = obtener_o_crear_categoria(valor)
             variante.product.category_id = nueva_categoria.id
+            regenerar_sku_flag = True
 
         elif campo == "brand":
             valor_anterior = marca
             nueva_marca = obtener_o_crear_marca(valor)
             variante.brand_id = nueva_marca.id
+            regenerar_sku_flag = True
 
         elif campo == "type_variety":
             valor_anterior = variedad
             variante.type_variety = valor
+            regenerar_sku_flag = True
 
         elif campo == "content_value":
             valor_anterior = contenido
-            variante.content_value = float(valor)
-            if "content_unit" in extra:
-                variante.content_unit = extra["content_unit"]
+            valor_num, unidad_norm = normalizar_contenido(valor, extra.get("content_unit", variante.content_unit))
+            variante.content_value = valor_num
+            variante.content_unit = unidad_norm
+            regenerar_sku_flag = True
 
         elif campo == "content_unit":
             valor_anterior = contenido
-            variante.content_unit = valor
+            _, unidad_norm = normalizar_contenido(variante.content_value, valor)
+            variante.content_unit = unidad_norm
+            regenerar_sku_flag = True
 
         elif campo == "arrival_date":
             valor_anterior = "varía por lote"
+            fecha_norm = normalizar_fecha(valor)
             for lote in variante.batches:
-                lote.arrival_date = normalizar_fecha(valor)
+                lote.arrival_date = fecha_norm
 
         elif campo == "expiration_date":
             valor_anterior = "varía por lote"
+            fecha_norm = normalizar_fecha(valor)
             for lote in variante.batches:
-                lote.expiration_date = normalizar_fecha(valor)
+                lote.expiration_date = fecha_norm
 
         elif campo == "batch_quantity":
             lote_id = batch_info.get("batch_id")
@@ -321,12 +346,24 @@ def ejecutar_accion(contrato):
         else:
             return f"El campo '{campo}' no es válido."
 
+        if regenerar_sku_flag:
+            producto = variante.product
+            marca_obj = variante.brand
+            variante.sku_code = generar_sku(
+                producto,
+                marca_obj,
+                variante.type_variety,
+                variante.content_value,
+                variante.content_unit
+            )
+
         db.session.commit()
 
         return (
             f"El campo '{campo}' del producto '{nombre}' fue actualizado.\n"
             f"Valor anterior: {valor_anterior}\n"
-            f"Nuevo valor: {valor}"
+            f"Nuevo valor: {valor}\n"
+            f"SKU actual: {variante.sku_code}"
         )
 
 

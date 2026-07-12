@@ -169,8 +169,8 @@ CONTEXTO:
         else:
             try:
                 if "-" in fecha and len(fecha.split("-")[0]) == 4:
-                    y, m, d = fecha.split("-")
-                    contrato["batch"]["arrival_date"] = f"{d}-{m}-{y}"
+                    contrato["batch"]["arrival_date"] = fecha
+
             except:
                 contrato["batch"]["arrival_date"] = hoy
 
