@@ -202,10 +202,7 @@ def ejecutar_accion(contrato):
         contenido_valor = target.get("content_value")
         contenido_unidad = target.get("content_unit")
 
-        if contenido_valor in ["Por definir", None, ""]:
-            contenido_valor = None
-        if contenido_unidad in ["Por definir", None, ""]:
-            contenido_unidad = None
+        contenido_valor, contenido_unidad = normalizar_contenido(contenido_valor, contenido_unidad)
 
         variante = obtener_o_crear_variante(
             producto,
