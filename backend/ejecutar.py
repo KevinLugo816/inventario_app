@@ -102,10 +102,11 @@ def generar_sku(producto, marca, tipo_variedad, contenido_valor, contenido_unida
 def obtener_o_crear_variante(producto, marca, tipo_variedad, contenido_valor, contenido_unidad):
     contenido_valor, contenido_unidad = normalizar_contenido(contenido_valor, contenido_unidad)
 
+    tipo_variedad = tipo_variedad or ""
+
     variante = ProductVariant.query.filter_by(
         product_id=producto.id,
         brand_id=marca.id,
-        type_variety=tipo_variedad,
         content_value=contenido_valor,
         content_unit=contenido_unidad
     ).first()
@@ -121,6 +122,9 @@ def obtener_o_crear_variante(producto, marca, tipo_variedad, contenido_valor, co
             sku_code=sku
         )
         db.session.add(variante)
+        db.session.commit()
+    else:
+        variante.sku_code = generar_sku(producto, marca, tipo_variedad, contenido_valor, contenido_unidad)
         db.session.commit()
 
     return variante
