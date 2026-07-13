@@ -191,6 +191,13 @@ def resolver_variante(target):
 
 
 def ejecutar_accion(contrato):
+
+    lotes_huerfanos = InventoryBatch.query.filter_by(variant_id=None).all()
+    if lotes_huerfanos:
+        for lote in lotes_huerfanos:
+            db.session.delete(lote)
+        db.session.commit()
+
     action = contrato.get("action")
     target = contrato.get("target", {})
     batch = contrato.get("batch", {})
