@@ -131,61 +131,66 @@ def obtener_o_crear_variante(producto, marca, tipo_variedad, contenido_valor, co
 
 
 def resolver_variante(target):
-    nombre = (target.get("product_name") or "").strip().lower()
-    marca_txt = (target.get("brand") or "").strip().lower()
-    variedad_txt = (target.get("type_variety") or "").strip().lower()
-    categoria_txt = (target.get("category") or "").strip().lower()
+    nombre = target.get("product_name")
+    marca = target.get("brand")
+    categoria = target.get("category")
+    variedad = target.get("type_variety")
     valor = target.get("content_value")
     unidad = target.get("content_unit")
 
+    # 🔥 Validación mínima
+    if not nombre:
+        return None, "No se especificó el nombre del producto."
+
+    # 🔥 Buscar producto por coincidencia parcial
     productos = Product.query.filter(Product.name.ilike(f"%{nombre}%")).all()
     if not productos:
         return None, "No existe el producto solicitado."
 
-    if len(productos) > 1 and categoria_txt not in ["", "por definir"]:
-        productos = [
-            p for p in productos
-            if p.category and p.category.name.lower() == categoria_txt
-        ]
-
-    if not productos:
-        return None, "No existe un producto que coincida con el nombre y rubro."
-
+    # 🔥 Si hay varios productos, elegir el primero
     producto = productos[0]
 
-    variantes = ProductVariant.query.filter_by(product_id=producto.id).all()
+    # 🔥 Obtener variantes del producto
+    variantes = ProductVariant.query.filter_by(product_id=producto.id)
 
-    if marca_txt and marca_txt != "por definir":
-        variantes = [
-            v for v in variantes
-            if v.brand and v.brand.name.lower() == marca_txt
-        ]
+    # 🔥 Filtrar por marca SOLO si el usuario la mencionó
+    if marca:
+        marca_obj = Brand.query.filter(Brand.name.ilike(f"%{marca}%")).first()
+        if not marca_obj:
+            return None, "La marca indicada no existe."
+        variantes = variantes.filter_by(brand_id=marca_obj.id)
 
-    if variedad_txt and variedad_txt != "por definir":
-        variantes = [
-            v for v in variantes
-            if (v.type_variety or "").lower() == variedad_txt
-        ]
+    # 🔥 Filtrar por categoría SOLO si el usuario la mencionó
+    if categoria:
+        categoria_obj = Category.query.filter(Category.name.ilike(f"%{categoria}%")).first()
+        if not categoria_obj:
+            return None, "La categoría indicada no existe."
+        variantes = variantes.filter_by(category_id=categoria_obj.id)
 
-    if valor not in ["Por definir", None] and unidad not in ["Por definir", None]:
-        try:
-            valor_norm, unidad_norm = normalizar_contenido(valor, unidad)
-            variantes = [
-                v for v in variantes
-                if v.content_value == valor_norm and v.content_unit == unidad_norm
-            ]
-        except:
-            pass
+    # 🔥 Filtrar por variedad SOLO si el usuario la mencionó
+    if variedad:
+        variantes = variantes.filter(ProductVariant.type_variety.ilike(f"%{variedad}%"))
 
-    batch_id = target.get("batch_id") or None
-    if batch_id:
-        return variantes[0] if variantes else None, None
+    # 🔥 Filtrar por contenido SOLO si el usuario lo mencionó
+    if valor and unidad:
+        variantes = variantes.filter_by(content_value=valor, content_unit=unidad)
 
-    if len(variantes) == 0:
+    # 🔥 Obtener lista final
+    variantes = variantes.all()
+
+    if not variantes:
         return None, "No existe una variante que coincida con la descripción."
 
+    # 🔥 Si hay varias variantes, elegir la más específica
     if len(variantes) > 1:
-        return None, "Hay varias variantes. Especifica marca, variedad o contenido."
+        # Preferir coincidencias exactas de contenido
+        exactas = [
+            v for v in variantes
+            if (valor is None or v.content_value == valor)
+            and (unidad is None or v.content_unit == unidad)
+        ]
+        if exactas:
+            return exactas[0], None
 
     return variantes[0], None
 

@@ -13,6 +13,7 @@ def interpretar_mensaje(mensaje: str, contexto: str = ""):
     hoy = datetime.now().strftime("%d-%m-%Y")
     texto = mensaje.lower().strip()
 
+    # Detectar fechas inválidas
     fecha_regex = r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b"
     coincidencias = re.findall(fecha_regex, mensaje)
     for d, m, y in coincidencias:
@@ -21,6 +22,7 @@ def interpretar_mensaje(mensaje: str, contexto: str = ""):
         except:
             mensaje = mensaje.replace(f"{d}-{m}-{y}", "Por definir")
 
+    # Inferencias de intención
     if any(x in texto for x in ["ponle", "agrega", "añade"]) and "más" in texto:
         contexto += "\n[INTENCION_INFERIDA]: edit_quantity"
 
@@ -39,9 +41,11 @@ def interpretar_mensaje(mensaje: str, contexto: str = ""):
     if "cambia el rubro" in texto or "cambia la categoría" in texto or "ponlo en la categoría" in texto:
         contexto += "\n[CAMBIO_CATEGORIA]"
 
+    # Detectar lote
     match_lote = re.search(r"lote\s*(#|\s*número\s*)?(\d+)", texto)
     lote_id_detectado = int(match_lote.group(2)) if match_lote else None
 
+    # Prompt para Groq
     prompt = f"""
 Eres Bell, un asistente experto en inventario.
 Tu única salida debe ser SIEMPRE un JSON válido.
@@ -113,11 +117,13 @@ CONTEXTO:
         })
         contrato.setdefault("changes", {})
 
+        # Lote detectado
         if lote_id_detectado:
             contrato["batch"]["batch_id"] = lote_id_detectado
             if contrato["action"] == "edit":
                 contrato["changes"]["field"] = "batch_quantity"
 
+        # Normalización de fecha
         fecha = str(contrato["batch"].get("arrival_date", "")).strip()
         if "-" in fecha and len(fecha.split("-")[0]) == 4:
             contrato["batch"]["arrival_date"] = fecha
@@ -128,6 +134,7 @@ CONTEXTO:
             except:
                 contrato["batch"]["arrival_date"] = hoy
 
+        # Detectar contenido
         texto_original = mensaje.lower()
         menciona_contenido = any(
             unidad in texto_original
@@ -138,6 +145,7 @@ CONTEXTO:
             contrato["target"]["content_value"] = None
             contrato["target"]["content_unit"] = None
 
+        # Separar contenido tipo "1kg"
         if contrato["target"].get("content_value") and contrato["target"].get("content_unit") is None:
             raw = contrato["target"]["content_value"]
             match = re.match(r"(\d+(?:\.\d+)?)([a-zA-Z]+)", raw)
@@ -145,6 +153,7 @@ CONTEXTO:
                 contrato["target"]["content_value"] = match.group(1)
                 contrato["target"]["content_unit"] = match.group(2)
 
+        # 🔥 Fallback de product_name
         if not contrato["target"].get("product_name"):
             posibles = re.findall(r"[a-zA-Záéíóúñ]+", texto)
             blacklist = {
@@ -157,6 +166,27 @@ CONTEXTO:
                 if palabra not in blacklist:
                     contrato["target"]["product_name"] = palabra
                     break
+
+        # 🔥 LIMPIEZA DE NOMBRE DE PRODUCTO
+        pn = contrato["target"].get("product_name")
+        if pn:
+            pn = pn.lower()
+            pn = pn.replace("marca", "")
+            pn = pn.replace("del rubro", "")
+            pn = pn.replace("rubro", "")
+            pn = pn.replace("contenido", "")
+            pn = pn.replace("variedad", "")
+            pn = pn.replace("tipo", "")
+
+            palabras = [p for p in re.findall(r"[a-záéíóúñ]+", pn) if p not in ["la", "el", "de", "del"]]
+            if palabras:
+                contrato["target"]["product_name"] = palabras[0].capitalize()
+
+        # 🔥 DETECTAR CANTIDAD PARA DELETE
+        if contrato["action"] == "delete":
+            match_qty = re.search(r"(\d+)", mensaje)
+            if match_qty:
+                contrato["batch"]["quantity"] = int(match_qty.group(1))
 
         return contrato
 
