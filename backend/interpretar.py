@@ -43,7 +43,7 @@ def interpretar_mensaje(mensaje: str, contexto: str = ""):
     lote_id_detectado = int(match_lote.group(2)) if match_lote else None
 
     prompt = f"""
-Eres Bell, un asistente experto en inventario profesional.
+Eres Bell, un asistente experto en inventario.
 Tu única salida debe ser SIEMPRE un JSON válido.
 Nunca escribas texto fuera del JSON.
 Nunca expliques tu razonamiento.
@@ -54,13 +54,7 @@ Nunca interpretes equivalencias.
 Nunca transformes 1 kg → 1000 g, ni 1 L → 1000 ml, ni 500 ml → 0.5 L.
 Debes usar EXACTAMENTE el contenido que el usuario menciona.
 
-Arquitectura del sistema:
-- Product
-- ProductVariant
-- InventoryBatch
-
-Contrato JSON (formato obligatorio):
-
+Contrato JSON obligatorio:
 {{
   "action": "add" | "edit" | "delete" | "query" | "select",
   "target": {{
@@ -86,46 +80,7 @@ Contrato JSON (formato obligatorio):
   "option": null
 }}
 
-REGLAS DE INTERPRETACIÓN:
-
-ACCIONES:
-- ADD: Registrar producto, variante y lote.
-- EDIT: Modificar un campo del producto, variante o lote.
-- DELETE: Eliminar cantidad de una variante.
-- QUERY: Consultar información de un producto o variante.
-- SELECT: Elegir una variante entre varias opciones.
-
-REGLAS DE CONTENIDO:
-- content_value debe ser EXACTAMENTE el número que el usuario dijo.
-- content_unit debe ser EXACTAMENTE la unidad que el usuario dijo.
-- NO convertir unidades.
-- NO escalar unidades.
-- NO interpretar equivalencias.
-- NO transformar valores.
-- Si el usuario no menciona contenido, usar null.
-
-REGLAS DE FECHAS:
-- arrival_date por defecto = {hoy}
-- Si el usuario dice una fecha válida, usarla tal cual.
-- Si dice “por definir”, usar “Por definir”.
-
-REGLAS DE CANTIDAD:
-- quantity debe ser el número exacto mencionado.
-- Si no menciona cantidad, usar 0.
-
-REGLAS DE CAMPOS:
-- Si el usuario dice “cambia”, “modifica”, “actualiza”, la acción es EDIT.
-- Si dice “agrega”, “añade”, “ingresa”, la acción es ADD.
-- Si dice “elimina”, “quita”, la acción es DELETE.
-- Si dice “cuánto”, “consulta”, “muéstrame”, la acción es QUERY.
-- Si responde “sí”, “ok”, “dale”, “el primero”, “el segundo”, la acción es SELECT.
-
-REGLAS DE NULOS:
-- Si el usuario no menciona un campo, debe quedar en null.
-- Nunca inventes valores.
-- Nunca rellenes contenido, marca, variedad o categoría si el usuario no lo dijo.
-
-INTERPRETA ESTE MENSAJE DEL USUARIO:
+INTERPRETA ESTE MENSAJE:
 {mensaje}
 
 CONTEXTO:
@@ -164,7 +119,6 @@ CONTEXTO:
                 contrato["changes"]["field"] = "batch_quantity"
 
         fecha = str(contrato["batch"].get("arrival_date", "")).strip()
-
         if "-" in fecha and len(fecha.split("-")[0]) == 4:
             contrato["batch"]["arrival_date"] = fecha
         else:
@@ -190,6 +144,19 @@ CONTEXTO:
             if match:
                 contrato["target"]["content_value"] = match.group(1)
                 contrato["target"]["content_unit"] = match.group(2)
+
+        if not contrato["target"].get("product_name"):
+            posibles = re.findall(r"[a-zA-Záéíóúñ]+", texto)
+            blacklist = {
+                "del", "de", "la", "el", "marca", "rubro", "variedad", "contenido",
+                "kg", "g", "ml", "l", "unidades", "unidad", "ponle", "agrega",
+                "añade", "ingresa", "registra", "cambia", "modifica", "actualiza",
+                "quita", "elimina", "fecha", "vencimiento", "por", "definir"
+            }
+            for palabra in posibles:
+                if palabra not in blacklist:
+                    contrato["target"]["product_name"] = palabra
+                    break
 
         return contrato
 

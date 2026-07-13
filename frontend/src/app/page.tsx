@@ -178,7 +178,7 @@ export default function Home() {
         {/* Gráfico 1 */}
         <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a] animate-[fadeIn_.5s_ease-out]">
           <h3 className="text-xl font-semibold mb-4 text-gray-300">
-            Inventario por Categoría
+            Inventario por Rubro
           </h3>
 
           <div className="relative w-full h-[300px]">
