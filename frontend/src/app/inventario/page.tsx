@@ -91,6 +91,21 @@ export default function Inventario() {
     );
   }, [productos]);
 
+  const variantesConTotales = variantes.map((v) => ({
+    ...v,
+    total: v.total_quantity,
+  }));
+
+  const stockMinimo =
+    variantesConTotales.length > 0
+      ? variantesConTotales.reduce((min, v) => (v.total < min.total ? v : min))
+      : null;
+
+  const stockMaximo =
+    variantesConTotales.length > 0
+      ? variantesConTotales.reduce((max, v) => (v.total > max.total ? v : max))
+      : null;
+
   const variantesFiltradas = useMemo(() => {
     return variantes.filter((v) => {
       const lote = v.batches[0] || null;
@@ -181,7 +196,6 @@ export default function Inventario() {
     );
   }
 
-
   return (
     <div className="space-y-10">
       <h1 className="text-4xl font-bold tracking-tight text-orange-400">
@@ -196,20 +210,40 @@ export default function Inventario() {
         onChange={(e) => setBusqueda(e.target.value)}
       />
 
-      {/* TARJETAS RESUMEN */}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a]">
-          <h3 className="text-gray-400 text-lg">Productos Totales</h3>
-          <p className="text-5xl font-bold text-orange-500 mt-2">
-            {variantes.length}
-          </p>
+          <h3 className="text-gray-400 text-lg">Stock Mínimo</h3>
+
+          {stockMinimo ? (
+            <>
+              <p className="text-4xl font-bold text-red-400 mt-2">
+                {stockMinimo.total} unidades
+              </p>
+              <p className="text-gray-300 mt-1">
+                {stockMinimo.product_name} — {stockMinimo.brand}
+              </p>
+            </>
+          ) : (
+            <p className="text-gray-500 mt-2">Sin datos</p>
+          )}
         </div>
 
         <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a]">
-          <h3 className="text-gray-400 text-lg">Categorías</h3>
-          <p className="text-5xl font-bold text-orange-500 mt-2">
-            {new Set(variantes.map((v) => v.category)).size}
-          </p>
+          <h3 className="text-gray-400 text-lg">Stock Máximo</h3>
+
+          {stockMaximo ? (
+            <>
+              <p className="text-4xl font-bold text-green-400 mt-2">
+                {stockMaximo.total} unidades
+              </p>
+              <p className="text-gray-300 mt-1">
+                {stockMaximo.product_name} — {stockMaximo.brand}
+              </p>
+            </>
+          ) : (
+            <p className="text-gray-500 mt-2">Sin datos</p>
+          )}
         </div>
 
         <div className="bg-[#1b1b1b] p-6 rounded-xl shadow-lg border border-[#2a2a2a]">
@@ -218,6 +252,7 @@ export default function Inventario() {
             {variantes.reduce((acc, v) => acc + v.total_quantity, 0)}
           </p>
         </div>
+
       </div>
 
       {/* TABLA */}
@@ -270,7 +305,6 @@ export default function Inventario() {
                     key={v.variant_id}
                     className="border-b border-[#2a2a2a] hover:bg-[#2a2a2a]/40 transition group"
                   >
-                    {/* Rubro con gradiente + tooltip*/}
                     <td className="p-3">
                       <span className="px-3 py-1 bg-orange-600/20 text-orange-400 rounded-full text-sm relative inline-block">
 
@@ -346,7 +380,6 @@ export default function Inventario() {
         </div>
       </div>
 
-      {/* MODAL */}
       <EditarVariante
         variante={editando}
         form={formEdit}
