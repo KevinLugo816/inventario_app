@@ -165,7 +165,6 @@ CONTEXTO:
 
         fecha = str(contrato["batch"].get("arrival_date", "")).strip()
 
-        # 🔥 CORRECCIÓN CRÍTICA: NO TOCAR FECHAS ISO
         if "-" in fecha and len(fecha.split("-")[0]) == 4:
             contrato["batch"]["arrival_date"] = fecha
         else:
@@ -185,7 +184,6 @@ CONTEXTO:
             contrato["target"]["content_value"] = None
             contrato["target"]["content_unit"] = None
 
-        # 🔥 NUEVO: separar contenido tipo "1kg"
         if contrato["target"].get("content_value") and contrato["target"].get("content_unit") is None:
             raw = contrato["target"]["content_value"]
             match = re.match(r"(\d+(?:\.\d+)?)([a-zA-Z]+)", raw)

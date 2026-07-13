@@ -23,10 +23,12 @@ with app.app_context():
 
 def generar_sku(producto, variante):
     categoria = (producto.category.name if producto.category else "GEN").upper()
-    nombre = producto.name.replace(" ", "").upper()
-    marca = (variante.brand.name if variante.brand else "GEN").upper()
-    variedad = variante.type_variety.replace(" ", "").upper()
-    contenido = f"{variante.content_value}{variante.content_unit}".upper()
+    nombre = (producto.name or "").replace(" ", "").upper()
+    marca = (variante.brand.name if variante.brand else "GEN").replace(" ", "").upper()
+    variedad = (variante.type_variety or "").replace(" ", "").upper()
+    contenido_valor = str(variante.content_value or "")
+    contenido_unidad = str(variante.content_unit or "")
+    contenido = f"{contenido_valor}{contenido_unidad}".upper()
 
     return f"{categoria}-{nombre}-{marca}-{variedad}-{contenido}"
 
@@ -94,15 +96,6 @@ def editar_variante(variant_id):
         producto = Product.query.get(variante.product_id)
         regenerar_sku = False
 
-        campos_sku = [
-            "product_name",
-            "category",
-            "brand",
-            "type_variety",
-            "content_value",
-            "content_unit"
-        ]
-
         if "product_name" in data:
             producto.name = data["product_name"]
             regenerar_sku = True
@@ -163,9 +156,6 @@ def asistente_ia():
 
         if not isinstance(accion, dict):
             return jsonify({"respuesta": "La IA devolvió un formato inesperado."})
-
-        if accion.get("accion") == "error":
-            return jsonify({"respuesta": "No entendí tu solicitud."})
 
         try:
             resultado = ejecutar_accion(accion)
